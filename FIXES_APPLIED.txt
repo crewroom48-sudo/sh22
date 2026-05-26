@@ -1,0 +1,5 @@
+Applied stability fixes:
+- Disabled Expo new architecture
+- Updated notification handler for Expo SDK 54
+- Added Android notification channel
+- Removed outdated react-native-paper dependency
