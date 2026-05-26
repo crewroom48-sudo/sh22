@@ -81,9 +81,6 @@ export default function ShiftChecklistScreen() {
     'Kancelária je čistá, poriadená?',
   ]);
 
-  const [customDuringChecklist, setCustomDuringChecklist] = useState([]);
-  const [customAfterChecklist, setCustomAfterChecklist] = useState([]);
-
   const mkRows = (hours) =>
     hours.map((h) => ({ hour:h, salesPlan:'', salesReality:'', tcPlan:'', tcReality:'', mfy:'', r2p:'', sendKuch:'', del:'' }));
 
@@ -96,15 +93,15 @@ export default function ShiftChecklistScreen() {
   const walkTimes  = shiftType === 'morning' ? morningWalkTimes : lunchWalkTimes;
   const checklist  = shiftType === 'morning' ? morningChecklist : lunchChecklist;
 
-  const mergedDuringChecklist = [
-    ...duringChecklist,
-    ...customDuringChecklist,
-  ];
+const mergedDuringChecklist =
+  shiftType === 'morning'
+    ? [...duringChecklist, ...morningCustomDuringChecklist]
+    : [...duringChecklist, ...lunchCustomDuringChecklist];
 
-  const mergedAfterChecklist = [
-    ...afterChecklist,
-    ...customAfterChecklist,
-  ];
+const mergedAfterChecklist =
+  shiftType === 'morning'
+    ? [...afterChecklist, ...morningCustomAfterChecklist]
+    : [...afterChecklist, ...lunchCustomAfterChecklist];
   const currentHoursForShift = shiftType === 'morning' ? morningHours : lunchHours;
 
   const setTableData = (d) => shiftType === 'morning' ? setMorningTableData(d) : setLunchTableData(d);
@@ -209,9 +206,6 @@ export default function ShiftChecklistScreen() {
         setHoursWorked(p.hoursWorked || '');
         setNotes(p.notes || '');
         setDarkMode(p.darkMode || false);
-        setShiftType(p.shiftType || 'morning');
-        setCustomDuringChecklist(p.customDuringChecklist || []);
-        setCustomAfterChecklist(p.customAfterChecklist || []);
         if (p.morningTableData?.length) setMorningTableData(p.morningTableData);
         if (p.morningWalkTimes?.length) setMorningWalkTimes(p.morningWalkTimes);
         if (p.lunchTableData?.length)   setLunchTableData(p.lunchTableData);
@@ -228,21 +222,9 @@ export default function ShiftChecklistScreen() {
   const saveData = async () => {
     try {
       await AsyncStorage.setItem('shiftAppData', JSON.stringify({
-        name,
-        checks,
-        duringChecks,
-        afterChecks,
-        walkChecks,
-        hoursWorked,
-        notes,
-        darkMode,
-        shiftType,
-        morningTableData,
-        morningWalkTimes,
-        lunchTableData,
-        lunchWalkTimes,
-        customDuringChecklist,
-        customAfterChecklist,
+        name, checks, duringChecks, afterChecks, walkChecks,
+        hoursWorked, notes, darkMode,
+        morningTableData, morningWalkTimes, lunchTableData, lunchWalkTimes,
       }));
       await AsyncStorage.setItem('morningChecklist', JSON.stringify(morningChecklist));
       await AsyncStorage.setItem('lunchChecklist',   JSON.stringify(lunchChecklist));
@@ -267,91 +249,21 @@ export default function ShiftChecklistScreen() {
 
   const updateChecklist = (section, idx, val) => {
     if (section === 'before') {
-      const u = [...checklist];
-      u[idx] = val;
-
-      shiftType === 'morning'
-        ? setMorningChecklist(u)
-        : setLunchChecklist(u);
+      const u = [...checklist]; u[idx] = val;
+      shiftType === 'morning' ? setMorningChecklist(u) : setLunchChecklist(u);
     }
-
-    if (section === 'during') {
-      if (idx < duringChecklist.length) {
-        const u = [...duringChecklist];
-        u[idx] = val;
-        setDuringChecklist(u);
-      } else {
-        const customIdx = idx - duringChecklist.length;
-        const u = [...customDuringChecklist];
-        u[customIdx] = val;
-        setCustomDuringChecklist(u);
-      }
-    }
-
-    if (section === 'after') {
-      if (idx < afterChecklist.length) {
-        const u = [...afterChecklist];
-        u[idx] = val;
-        setAfterChecklist(u);
-      } else {
-        const customIdx = idx - afterChecklist.length;
-        const u = [...customAfterChecklist];
-        u[customIdx] = val;
-        setCustomAfterChecklist(u);
-      }
-    }
+    if (section === 'during') { const u=[...duringChecklist]; u[idx]=val; setDuringChecklist(u); }
+    if (section === 'after')  { const u=[...afterChecklist];  u[idx]=val; setAfterChecklist(u);  }
   };
   const addChecklistItem = (section) => {
-    if (section === 'before') {
-      shiftType === 'morning'
-        ? setMorningChecklist([...morningChecklist, ''])
-        : setLunchChecklist([...lunchChecklist, '']);
-    }
-
-    if (section === 'during') {
-      setCustomDuringChecklist([
-        ...customDuringChecklist,
-        '',
-      ]);
-    }
-
-    if (section === 'after') {
-      setCustomAfterChecklist([
-        ...customAfterChecklist,
-        '',
-      ]);
-    }
+    if (section === 'before') shiftType==='morning' ? setMorningChecklist([...morningChecklist,'']) : setLunchChecklist([...lunchChecklist,'']);
+    if (section === 'during') setDuringChecklist([...duringChecklist,'']);
+    if (section === 'after')  setAfterChecklist([...afterChecklist,'']);
   };
   const deleteChecklistItem = (section, idx) => {
-    if (section === 'before') {
-      shiftType === 'morning'
-        ? setMorningChecklist(morningChecklist.filter((_, i) => i !== idx))
-        : setLunchChecklist(lunchChecklist.filter((_, i) => i !== idx));
-    }
-
-    if (section === 'during') {
-      if (idx < duringChecklist.length) {
-        setDuringChecklist(duringChecklist.filter((_, i) => i !== idx));
-      } else {
-        const customIdx = idx - duringChecklist.length;
-
-        setCustomDuringChecklist(
-          customDuringChecklist.filter((_, i) => i !== customIdx)
-        );
-      }
-    }
-
-    if (section === 'after') {
-      if (idx < afterChecklist.length) {
-        setAfterChecklist(afterChecklist.filter((_, i) => i !== idx));
-      } else {
-        const customIdx = idx - afterChecklist.length;
-
-        setCustomAfterChecklist(
-          customAfterChecklist.filter((_, i) => i !== customIdx)
-        );
-      }
-    }
+    if (section === 'before') shiftType==='morning' ? setMorningChecklist(morningChecklist.filter((_,i)=>i!==idx)) : setLunchChecklist(lunchChecklist.filter((_,i)=>i!==idx));
+    if (section === 'during') setDuringChecklist(duringChecklist.filter((_,i)=>i!==idx));
+    if (section === 'after')  setAfterChecklist(afterChecklist.filter((_,i)=>i!==idx));
   };
 
   const updateWalkTime = (idx, val) => { const u=[...walkTimes]; u[idx]=val; setWalkTimes(u); };
