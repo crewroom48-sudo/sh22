@@ -17,8 +17,7 @@ workflows:
 
       - npx eas-cli@latest init --id 00422f5f-3a47-4234-b03f-34bfa1450462
 
-      - eas build --platform android --non-interactive
+      - eas build --platform android --profile preview --non-interactive
 
     artifacts:
       - "*.apk"
-      - "*.aab"
