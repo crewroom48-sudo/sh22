@@ -13,8 +13,6 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
   }),
 });
 
@@ -81,6 +79,13 @@ export default function ShiftChecklistScreen() {
     'Kancelária je čistá, poriadená?',
   ]);
 
+const [morningCustomDuringChecklist, setMorningCustomDuringChecklist] = useState([]);
+const [lunchCustomDuringChecklist, setLunchCustomDuringChecklist] = useState([]);
+
+const [morningCustomAfterChecklist, setMorningCustomAfterChecklist] = useState([]);
+const [lunchCustomAfterChecklist, setLunchCustomAfterChecklist] = useState([]);
+
+
   const mkRows = (hours) =>
     hours.map((h) => ({ hour:h, salesPlan:'', salesReality:'', tcPlan:'', tcReality:'', mfy:'', r2p:'', sendKuch:'', del:'' }));
 
@@ -92,16 +97,6 @@ export default function ShiftChecklistScreen() {
   const tableData  = shiftType === 'morning' ? morningTableData : lunchTableData;
   const walkTimes  = shiftType === 'morning' ? morningWalkTimes : lunchWalkTimes;
   const checklist  = shiftType === 'morning' ? morningChecklist : lunchChecklist;
-
-const mergedDuringChecklist =
-  shiftType === 'morning'
-    ? [...duringChecklist, ...morningCustomDuringChecklist]
-    : [...duringChecklist, ...lunchCustomDuringChecklist];
-
-const mergedAfterChecklist =
-  shiftType === 'morning'
-    ? [...afterChecklist, ...morningCustomAfterChecklist]
-    : [...afterChecklist, ...lunchCustomAfterChecklist];
   const currentHoursForShift = shiftType === 'morning' ? morningHours : lunchHours;
 
   const setTableData = (d) => shiftType === 'morning' ? setMorningTableData(d) : setLunchTableData(d);
@@ -354,7 +349,7 @@ const mergedAfterChecklist =
         {/* before + during checklists */}
         {[
           {label:'Pred zmenou',  items:checklist,       toggle:toggleCheck,        stateObj:checks,       prefix:`${shiftType}_before`, section:'before'},
-          {label:'Počas zmeny',  items:mergedDuringChecklist,  toggle:toggleDuringCheck,  stateObj:duringChecks,  prefix:`${shiftType}_during`, section:'during'},
+          {label:'Počas zmeny',  items:duringChecklist,  toggle:toggleDuringCheck,  stateObj:duringChecks,  prefix:`${shiftType}_during`, section:'during'},
         ].map(({label,items,toggle,stateObj,prefix,section})=>(
           <View key={section}>
             <Text style={[s.section,{color:theme.text}]}>{label}</Text>
@@ -441,7 +436,7 @@ const mergedAfterChecklist =
 
         {/* after shift */}
         <Text style={[s.section,{color:theme.text}]}>Po zmene</Text>
-        {mergedAfterChecklist.map((item,i)=>(
+        {afterChecklist.map((item,i)=>(
           <View key={i} style={[s.checkRow,{backgroundColor:theme.rowBg}]}>
             <TextInput style={[s.rowLabel,{color:theme.rowText}]} value={item} editable={editingEnabled} onChangeText={(v)=>updateChecklist('after',i,v)}/>
             {editingEnabled && <TouchableOpacity onPress={()=>deleteChecklistItem('after',i)}><Text style={s.del}>X</Text></TouchableOpacity>}
