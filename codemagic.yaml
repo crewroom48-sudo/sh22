@@ -8,9 +8,15 @@ workflows:
       groups:
         - expo
 
+      vars:
+        EAS_BUILD_NO_EXPO_GO_WARNING: "true"
+
     scripts:
       - npm install
       - npm install -g eas-cli
+
+      - npx eas-cli@latest init --id 00422f5f-3a47-4234-b03f-34bfa1450462
+
       - eas build --platform android --non-interactive
 
     artifacts:
