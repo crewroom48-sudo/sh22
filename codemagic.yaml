@@ -5,9 +5,11 @@ workflows:
     environment:
       node: latest
 
+      groups:
+        - expo
+
     scripts:
       - npm install
-      - npx expo install
       - npm install -g eas-cli
       - eas build --platform android --non-interactive
 
