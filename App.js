@@ -1,7 +1,23 @@
+/**
+ * Shift Checklist — Standalone App.js
+ *
+ * Works with:
+ *  - Expo Snack  (paste directly, SDK 52+)
+ *  - GitHub + Codemagic  (place at project root, npx expo start)
+ *  - EAS Build / expo-dev-client
+ *
+ * Required packages:
+ *   "expo-notifications": "~0.29.0"
+ *   "@react-native-async-storage/async-storage": "^2.0.0"
+ *   "@expo/vector-icons": "^14.0.0"
+ *
+ * app.json plugins: ["expo-notifications", { "sounds": [] }]
+ */
+
 import React, { useState, useEffect } from 'react';
 import {
   SafeAreaView, ScrollView, View, Text, TextInput,
-  TouchableOpacity, StyleSheet, Alert, Switch, Platform,
+  TouchableOpacity, StyleSheet, Alert, Switch, Platform, Modal, StatusBar,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
@@ -20,23 +36,24 @@ const ACCENT = '#FBBF24';
 const DANGER = '#ef4444';
 const SUCCESS = '#22c55e';
 
-// ─── AsyncStorage keys (one per shift per data type) ─────────────────────────
+// ─── AsyncStorage keys ────────────────────────────────────────────────────────
 const KEYS = {
-  shared:                   'shift_shared',
-  morning_before:           'morning_before_checklist',
-  morning_during:           'morning_during_checklist',
-  morning_after:            'morning_after_checklist',
-  morning_table:            'morning_table_data',
-  morning_walk:             'morning_walk_times',
-  afternoon_before:         'afternoon_before_checklist',
-  afternoon_during:         'afternoon_during_checklist',
-  afternoon_after:          'afternoon_after_checklist',
-  afternoon_table:          'afternoon_table_data',
-  afternoon_walk:           'afternoon_walk_times',
-  checks:                   'shift_checks',
-  duringChecks:             'shift_during_checks',
-  afterChecks:              'shift_after_checks',
-  walkChecks:               'shift_walk_checks',
+  shared:           'shift_shared',
+  morning_before:   'morning_before_checklist',
+  morning_during:   'morning_during_checklist',
+  morning_after:    'morning_after_checklist',
+  morning_table:    'morning_table_data',
+  morning_walk:     'morning_walk_times',
+  afternoon_before: 'afternoon_before_checklist',
+  afternoon_during: 'afternoon_during_checklist',
+  afternoon_after:  'afternoon_after_checklist',
+  afternoon_table:  'afternoon_table_data',
+  afternoon_walk:   'afternoon_walk_times',
+  checks:           'shift_checks',
+  duringChecks:     'shift_during_checks',
+  afterChecks:      'shift_after_checks',
+  walkChecks:       'shift_walk_checks',
+  password:         'shift_custom_password',
 };
 
 // ─── Default checklist content ────────────────────────────────────────────────
@@ -111,46 +128,54 @@ export default function ShiftChecklistScreen() {
   const [darkMode,       setDarkMode]       = useState(false);
   const [showSettings,   setShowSettings]   = useState(false);
   const [password,       setPassword]       = useState('');
+  const [showPassword,   setShowPassword]   = useState(false);
   const [editingEnabled, setEditingEnabled] = useState(false);
+  const [customPassword, setCustomPassword] = useState('');
+  const [showChangePw,   setShowChangePw]   = useState(false);
+  const [cpCurrent,      setCpCurrent]      = useState('');
+  const [cpNew,          setCpNew]          = useState('');
+  const [cpConfirm,      setCpConfirm]      = useState('');
+  const [showCpCurrent,  setShowCpCurrent]  = useState(false);
+  const [showCpNew,      setShowCpNew]      = useState(false);
+  const [showCpConfirm,  setShowCpConfirm]  = useState(false);
 
-  // ── Checkbox states (keyed by shift+index so shifts never cross) ────────────
+  // ── Checkbox states ──────────────────────────────────────────────────────────
   const [checks,       setChecks]       = useState({});
   const [duringChecks, setDuringChecks] = useState({});
   const [afterChecks,  setAfterChecks]  = useState({});
   const [walkChecks,   setWalkChecks]   = useState({});
 
-  // ── Morning shift: completely independent state ──────────────────────────────
+  // ── Morning shift state ──────────────────────────────────────────────────────
   const [morningBefore, setMorningBefore] = useState(DEFAULT_MORNING_BEFORE);
   const [morningDuring, setMorningDuring] = useState(DEFAULT_MORNING_DURING);
   const [morningAfter,  setMorningAfter]  = useState(DEFAULT_MORNING_AFTER);
   const [morningTable,  setMorningTable]  = useState(() => mkRows(MORNING_HOURS));
   const [morningWalk,   setMorningWalk]   = useState(() => MORNING_HOURS.map(h => `${h}:00`));
 
-  // ── Afternoon shift: completely independent state ────────────────────────────
+  // ── Afternoon shift state ────────────────────────────────────────────────────
   const [afternoonBefore, setAfternoonBefore] = useState(DEFAULT_AFTERNOON_BEFORE);
   const [afternoonDuring, setAfternoonDuring] = useState(DEFAULT_AFTERNOON_DURING);
   const [afternoonAfter,  setAfternoonAfter]  = useState(DEFAULT_AFTERNOON_AFTER);
   const [afternoonTable,  setAfternoonTable]  = useState(() => mkRows(AFTERNOON_HOURS));
   const [afternoonWalk,   setAfternoonWalk]   = useState(() => AFTERNOON_HOURS.map(h => `${h}:00`));
 
-  // ── Derived: active shift data (read-only shortcuts) ────────────────────────
-  const isMorning   = shiftType === 'morning';
-  const checklist   = isMorning ? morningBefore   : afternoonBefore;
-  const duringList  = isMorning ? morningDuring   : afternoonDuring;
-  const afterList   = isMorning ? morningAfter    : afternoonAfter;
-  const tableData   = isMorning ? morningTable    : afternoonTable;
-  const walkTimes   = isMorning ? morningWalk     : afternoonWalk;
-  const currentHours= isMorning ? MORNING_HOURS   : AFTERNOON_HOURS;
-  const prefix      = shiftType; // 'morning' | 'afternoon' — used as key prefix
+  // ── Derived: active shift shortcuts ─────────────────────────────────────────
+  const isMorning    = shiftType === 'morning';
+  const checklist    = isMorning ? morningBefore  : afternoonBefore;
+  const duringList   = isMorning ? morningDuring  : afternoonDuring;
+  const afterList    = isMorning ? morningAfter   : afternoonAfter;
+  const tableData    = isMorning ? morningTable   : afternoonTable;
+  const walkTimes    = isMorning ? morningWalk    : afternoonWalk;
+  const currentHours = isMorning ? MORNING_HOURS  : AFTERNOON_HOURS;
+  const prefix       = shiftType;
 
-  // ── Setters that write to the correct shift ──────────────────────────────────
-  const setChecklist  = (v) => isMorning ? setMorningBefore(v)   : setAfternoonBefore(v);
-  const setDuringList = (v) => isMorning ? setMorningDuring(v)   : setAfternoonDuring(v);
-  const setAfterList  = (v) => isMorning ? setMorningAfter(v)    : setAfternoonAfter(v);
-  const setTableData  = (v) => isMorning ? setMorningTable(v)    : setAfternoonTable(v);
-  const setWalkTimes  = (v) => isMorning ? setMorningWalk(v)     : setAfternoonWalk(v);
+  const setChecklist  = (v) => isMorning ? setMorningBefore(v)  : setAfternoonBefore(v);
+  const setDuringList = (v) => isMorning ? setMorningDuring(v)  : setAfternoonDuring(v);
+  const setAfterList  = (v) => isMorning ? setMorningAfter(v)   : setAfternoonAfter(v);
+  const setTableData  = (v) => isMorning ? setMorningTable(v)   : setAfternoonTable(v);
+  const setWalkTimes  = (v) => isMorning ? setMorningWalk(v)    : setAfternoonWalk(v);
 
-  // ── Load all data on mount ──────────────────────────────────────────────────
+  // ── Load on mount ────────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
       if (Platform.OS !== 'web') {
@@ -169,7 +194,6 @@ export default function ShiftChecklistScreen() {
         return raw ? JSON.parse(raw) : fallback;
       };
 
-      // Shared
       const shared = await load(KEYS.shared, {});
       setName(shared.name || '');
       setHoursWorked(shared.hoursWorked || '');
@@ -177,13 +201,11 @@ export default function ShiftChecklistScreen() {
       setDarkMode(shared.darkMode || false);
       setShiftType(shared.shiftType || 'morning');
 
-      // Checkbox states
-      setChecks(      await load(KEYS.checks,      {}));
+      setChecks(      await load(KEYS.checks,       {}));
       setDuringChecks(await load(KEYS.duringChecks, {}));
       setAfterChecks( await load(KEYS.afterChecks,  {}));
       setWalkChecks(  await load(KEYS.walkChecks,   {}));
 
-      // Morning checklists
       setMorningBefore(await load(KEYS.morning_before, DEFAULT_MORNING_BEFORE));
       setMorningDuring(await load(KEYS.morning_during, DEFAULT_MORNING_DURING));
       setMorningAfter( await load(KEYS.morning_after,  DEFAULT_MORNING_AFTER));
@@ -192,7 +214,6 @@ export default function ShiftChecklistScreen() {
       const mw = await load(KEYS.morning_walk, null);
       if (mw && mw.length) setMorningWalk(mw);
 
-      // Afternoon checklists
       setAfternoonBefore(await load(KEYS.afternoon_before, DEFAULT_AFTERNOON_BEFORE));
       setAfternoonDuring(await load(KEYS.afternoon_during, DEFAULT_AFTERNOON_DURING));
       setAfternoonAfter( await load(KEYS.afternoon_after,  DEFAULT_AFTERNOON_AFTER));
@@ -201,11 +222,14 @@ export default function ShiftChecklistScreen() {
       const aw = await load(KEYS.afternoon_walk, null);
       if (aw && aw.length) setAfternoonWalk(aw);
 
+      const pw = await AsyncStorage.getItem(KEYS.password);
+      if (pw) setCustomPassword(pw);
+
     } catch (e) { console.log('loadAll error:', e); }
     isInitialized.current = true;
   };
 
-  // ── Autosave helpers — each piece of state has its own useEffect ────────────
+  // ── Autosave ─────────────────────────────────────────────────────────────────
   const save = (key, value) => {
     if (!isInitialized.current) return;
     AsyncStorage.setItem(key, JSON.stringify(value)).catch(console.log);
@@ -231,7 +255,7 @@ export default function ShiftChecklistScreen() {
   useEffect(() => { save(KEYS.afternoon_table,  afternoonTable);  }, [afternoonTable]);
   useEffect(() => { save(KEYS.afternoon_walk,   afternoonWalk);   }, [afternoonWalk]);
 
-  // ── Notifications ───────────────────────────────────────────────────────────
+  // ── Notifications ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isInitialized.current) return;
     if (Platform.OS !== 'web') scheduleAllNotifications();
@@ -245,19 +269,33 @@ export default function ShiftChecklistScreen() {
       const now = new Date();
       const todayAt = (h, m) => { const d = new Date(); d.setHours(h, m, 0, 0); return d; };
 
-      for (const row of tableData) {
+      // ── 1. Hourly table reminders — schedule for BOTH shifts ─────────────
+      // Each row fires at (hour+1):15 if salesReality or tcReality is empty.
+      // We schedule for both morningTable and afternoonTable so the active
+      // shift at any point in the day is always covered.
+      for (const row of [...morningTable, ...afternoonTable]) {
         const h = parseInt(row.hour);
         if (isNaN(h)) continue;
         const fireAt = todayAt(h + 1, 15);
         if (fireAt > now && (row.salesReality === '' || row.tcReality === '')) {
           await Notifications.scheduleNotificationAsync({
-            content: { title: `Zabudol si si zapisať hodinu ${row.hour}:00`, body: 'Sales Real a/alebo TC Real nie je vyplnené!' },
+            content: {
+              title: `Nevypísal si hodinu ${row.hour}:00`,
+              body: 'Sales Real alebo TC Real nie je vyplnené!',
+            },
             trigger: { date: fireAt },
           });
         }
       }
 
-      const checklistComplete = Object.values(checks).every(Boolean);
+      // ── 2. Before-shift checklist reminders (BUG FIXED) ──────────────────
+      // Original: Object.values(checks).every(Boolean) — vacuously true when
+      // checks is empty {}, and includes ticks from the OTHER shift.
+      // Fix: check only keys for current shift prefix, and require length > 0.
+      const checklistComplete =
+        checklist.length > 0 &&
+        checklist.every((_, i) => !!checks[`${prefix}_before_${i}`]);
+
       if (!checklistComplete) {
         const morningSlots   = [[6,0],[6,30],[7,0],[7,30],[8,0],[8,30]];
         const afternoonSlots = [[12,0],[12,30],[13,0],[13,30],[14,0],[14,30],[15,0]];
@@ -270,7 +308,10 @@ export default function ShiftChecklistScreen() {
             const timeStr = minsLeft === 0 ? 'teraz' : `o ${minsLeft} min`;
             const shiftName = isMorning ? 'Ranná zmena' : 'Obedná zmena';
             await Notifications.scheduleNotificationAsync({
-              content: { title: `${shiftName} začína ${timeStr}`, body: 'Checklist pred zmenou ešte nie je dokončený!' },
+              content: {
+                title: `${shiftName} začína ${timeStr}`,
+                body: 'Checklist pred zmenou ešte nie je dokončený!',
+              },
               trigger: { date: fireAt },
             });
           }
@@ -279,13 +320,13 @@ export default function ShiftChecklistScreen() {
     } catch (e) { console.log('Notification error:', e); }
   };
 
-  // ── Toggle helpers ──────────────────────────────────────────────────────────
+  // ── Toggle helpers ────────────────────────────────────────────────────────────
   const toggleCheck       = (k) => setChecks(p       => ({...p, [k]: !p[k]}));
   const toggleDuringCheck = (k) => setDuringChecks(p => ({...p, [k]: !p[k]}));
   const toggleAfterCheck  = (k) => setAfterChecks(p  => ({...p, [k]: !p[k]}));
   const toggleWalkCheck   = (k) => setWalkChecks(p   => ({...p, [k]: !p[k]}));
 
-  // ── Checklist edit helpers (always write to the active shift) ───────────────
+  // ── Checklist edit helpers ────────────────────────────────────────────────────
   const updateChecklist = (section, idx, val) => {
     if (section === 'before') { const u=[...checklist]; u[idx]=val; setChecklist(u); }
     if (section === 'during') { const u=[...duringList]; u[idx]=val; setDuringList(u); }
@@ -302,7 +343,7 @@ export default function ShiftChecklistScreen() {
     if (section === 'after')  setAfterList(afterList.filter((_,i) => i !== idx));
   };
 
-  // ── Table helpers ───────────────────────────────────────────────────────────
+  // ── Table helpers ─────────────────────────────────────────────────────────────
   const updateWalkTime = (idx, val) => { const u=[...walkTimes]; u[idx]=val; setWalkTimes(u); };
   const addTableRow    = () => {
     setTableData([...tableData, {hour:'',salesPlan:'',salesReality:'',tcPlan:'',tcReality:'',mfy:'',r2p:'',sendKuch:'',del:''}]);
@@ -321,7 +362,7 @@ export default function ShiftChecklistScreen() {
     setTableData(u);
   };
 
-  // ── Calculations ────────────────────────────────────────────────────────────
+  // ── Calculations ──────────────────────────────────────────────────────────────
   const calcSum  = (f) => tableData.reduce((s,r) => s + (parseFloat(r[f]) || 0), 0);
   const calcAvg  = () => { const v=tableData.map(r=>parseFloat(r.r2p)).filter(x=>!isNaN(x)); return v.length ? (v.reduce((s,x)=>s+x,0)/v.length).toFixed(2) : '0'; };
   const calcProd = (f) => { const h=parseFloat(hoursWorked)||0; return h ? (calcSum(f)/h).toFixed(2) : '0'; };
@@ -334,38 +375,55 @@ export default function ShiftChecklistScreen() {
     return darkMode ? '#2d0a0a' : '#fee2e2';
   };
 
-  // ── Auth ────────────────────────────────────────────────────────────────────
+  // ── Auth ──────────────────────────────────────────────────────────────────────
+  const activePassword = customPassword || EDIT_PASSWORD;
+
   const unlockEditing = () => {
-    if (password === EDIT_PASSWORD) { setEditingEnabled(true); setPassword(''); Alert.alert('Odomknuté','Editovanie povolené'); }
-    else Alert.alert('Chyba','Nesprávne heslo');
+    if (password === activePassword) {
+      setEditingEnabled(true);
+      setPassword('');
+      Alert.alert('Odomknuté','Editovanie povolené');
+    } else {
+      Alert.alert('Chyba','Nesprávne heslo');
+    }
   };
 
-  // ── Reset — only clears the active shift ────────────────────────────────────
+  const changePassword = async () => {
+    if (cpCurrent !== activePassword) {
+      Alert.alert('Chyba','Aktuálne heslo je nesprávne.');
+      return;
+    }
+    if (cpNew.length < 1) {
+      Alert.alert('Chyba','Nové heslo nesmie byť prázdne.');
+      return;
+    }
+    if (cpNew !== cpConfirm) {
+      Alert.alert('Chyba','Nové heslá sa nezhodujú.');
+      return;
+    }
+    await AsyncStorage.setItem(KEYS.password, cpNew);
+    setCustomPassword(cpNew);
+    setCpCurrent('');
+    setCpNew('');
+    setCpConfirm('');
+    setShowChangePw(false);
+    Alert.alert('Hotovo','Heslo bolo zmenené.');
+  };
+
+  // ── Reset ─────────────────────────────────────────────────────────────────────
   const resetShift = () => Alert.alert('Reset zmeny','Naozaj chceš resetovať zmenu?',[
     {text:'Nie', style:'cancel'},
     {text:'Áno', style:'destructive', onPress: () => {
       const nd = currentHours.map(h => ({hour:h,salesPlan:'',salesReality:'',tcPlan:'',tcReality:'',mfy:'',r2p:'',sendKuch:'',del:''}));
-      // Clear only this shift's checkboxes
-      setChecks(p => {
+      const clearPrefix = (setter) => setter(p => {
         const n = {...p};
         Object.keys(n).forEach(k => { if (k.startsWith(prefix)) delete n[k]; });
         return n;
       });
-      setDuringChecks(p => {
-        const n = {...p};
-        Object.keys(n).forEach(k => { if (k.startsWith(prefix)) delete n[k]; });
-        return n;
-      });
-      setAfterChecks(p => {
-        const n = {...p};
-        Object.keys(n).forEach(k => { if (k.startsWith(prefix)) delete n[k]; });
-        return n;
-      });
-      setWalkChecks(p => {
-        const n = {...p};
-        Object.keys(n).forEach(k => { if (k.startsWith(prefix)) delete n[k]; });
-        return n;
-      });
+      clearPrefix(setChecks);
+      clearPrefix(setDuringChecks);
+      clearPrefix(setAfterChecks);
+      clearPrefix(setWalkChecks);
       setNotes('');
       setHoursWorked('');
       setTableData(nd);
@@ -373,13 +431,13 @@ export default function ShiftChecklistScreen() {
     }},
   ], {cancelable: true});
 
-  // ── Theme ───────────────────────────────────────────────────────────────────
+  // ── Theme ─────────────────────────────────────────────────────────────────────
   const T = darkMode ? darkTheme : lightTheme;
   const W    = [36,60,60,60,60,44,44,44,44];
   const COLS = ['Hod','Sales\nPlan','Sales\nReal','TC\nPlan','TC\nReal','MFY','R2P','SEND','Del'];
   const FIELDS = ['salesPlan','salesReality','tcPlan','tcReality','mfy','r2p','sendKuch','del'];
 
-  // ── Progress counts ─────────────────────────────────────────────────────────
+  // ── Progress counts ───────────────────────────────────────────────────────────
   const countDone = (stateObj, pfx, total) =>
     Array.from({length:total}, (_,i) => stateObj[`${pfx}_${i}`] ? 1 : 0).reduce((a,b) => a+b, 0);
   const beforeDone = countDone(checks,       `${prefix}_before`, checklist.length);
@@ -390,24 +448,32 @@ export default function ShiftChecklistScreen() {
   // ─────────────────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={[s.container, {backgroundColor: T.background}]}>
-      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+      <StatusBar barStyle={darkMode ? 'light-content' : 'dark-content'} />
+      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
-        {/* ── HEADER ───────────────────────────────────────────────────────── */}
+        {/* ── HEADER ─────────────────────────────────────────────────────────── */}
         <View style={s.headerRow}>
           <View style={{flex:1}}>
             <Text style={[s.title, {color: T.text}]}>Shift Checklist</Text>
             <Text style={[s.date,  {color: T.subText}]}>{formattedDate}</Text>
           </View>
           <TouchableOpacity
-            style={[s.settingsBtn, {backgroundColor: showSettings ? ACCENT : T.card, borderColor: T.border}]}
-            onPress={() => setShowSettings(!showSettings)}
+            style={[s.settingsBtn, {backgroundColor: T.card, borderColor: T.border, marginRight: 8}]}
+            onPress={resetShift}
             activeOpacity={0.8}
           >
-            <Ionicons name="settings-outline" size={22} color={showSettings ? '#111' : T.icon} />
+            <Ionicons name="refresh-outline" size={22} color={T.icon} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.settingsBtn, {backgroundColor: T.card, borderColor: T.border}]}
+            onPress={() => setShowSettings(true)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="settings-outline" size={22} color={T.icon} />
           </TouchableOpacity>
         </View>
 
-        {/* ── NAME ─────────────────────────────────────────────────────────── */}
+        {/* ── NAME ───────────────────────────────────────────────────────────── */}
         <TextInput
           style={[s.input, {backgroundColor: T.inputBg, color: T.inputText, borderColor: T.border}]}
           placeholder="Meno manažera"
@@ -416,51 +482,7 @@ export default function ShiftChecklistScreen() {
           onChangeText={setName}
         />
 
-        {/* ── SETTINGS ─────────────────────────────────────────────────────── */}
-        {showSettings && (
-          <View style={[s.card, {backgroundColor: T.card, borderColor: T.border}]}>
-            <Text style={[s.cardTitle, {color: T.text}]}>Nastavenia</Text>
-
-            <View style={[s.settingRow, {borderBottomColor: T.border}]}>
-              <View style={s.settingLeft}>
-                <View style={[s.settingIcon, {backgroundColor: darkMode ? '#1e3a5f' : '#eff6ff'}]}>
-                  <Ionicons name="moon" size={15} color={darkMode ? '#93c5fd' : '#3b82f6'} />
-                </View>
-                <Text style={[s.settingLabel, {color: T.text}]}>Tmavý režim</Text>
-              </View>
-              <Switch
-                value={darkMode}
-                onValueChange={setDarkMode}
-                trackColor={{false:'#cbd5e1', true:'#3b82f6'}}
-                thumbColor="#fff"
-              />
-            </View>
-
-            {!editingEnabled ? (
-              <View style={{marginTop: 14}}>
-                <TextInput
-                  style={[s.input, {backgroundColor: T.inputBg, color: T.inputText, borderColor: T.border, marginBottom: 10}]}
-                  placeholder="Heslo pre editovanie"
-                  placeholderTextColor={T.placeholder}
-                  secureTextEntry
-                  value={password}
-                  onChangeText={setPassword}
-                />
-                <TouchableOpacity style={s.unlockBtn} onPress={unlockEditing} activeOpacity={0.85}>
-                  <Ionicons name="lock-open-outline" size={16} color="#111" style={{marginRight: 6}} />
-                  <Text style={s.unlockTxt}>Zapnúť editovanie</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity style={[s.unlockBtn, {backgroundColor: DANGER, marginTop: 14}]} onPress={() => setEditingEnabled(false)} activeOpacity={0.85}>
-                <Ionicons name="lock-closed-outline" size={16} color="#fff" style={{marginRight: 6}} />
-                <Text style={[s.unlockTxt, {color:'#fff'}]}>Vypnúť editovanie</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-
-        {/* ── SHIFT TOGGLE ─────────────────────────────────────────────────── */}
+        {/* ── SHIFT TOGGLE ───────────────────────────────────────────────────── */}
         <View style={[s.shiftToggleWrap, {backgroundColor: T.toggleBg, borderColor: T.border}]}>
           {['morning','afternoon'].map((t) => (
             <TouchableOpacity
@@ -482,7 +504,7 @@ export default function ShiftChecklistScreen() {
           ))}
         </View>
 
-        {/* ── BEFORE + DURING CHECKLISTS ────────────────────────────────────── */}
+        {/* ── BEFORE + DURING CHECKLISTS ─────────────────────────────────────── */}
         {[
           {label:'Pred zmenou', icon:'clipboard-outline', items:checklist,  toggle:toggleCheck,       stateObj:checks,      pfx:`${prefix}_before`, section:'before', done:beforeDone, total:checklist.length},
           {label:'Počas zmeny', icon:'time-outline',      items:duringList, toggle:toggleDuringCheck, stateObj:duringChecks, pfx:`${prefix}_during`, section:'during', done:duringDone, total:duringList.length},
@@ -511,7 +533,7 @@ export default function ShiftChecklistScreen() {
           </View>
         ))}
 
-        {/* ── WALKTHROUGHS ──────────────────────────────────────────────────── */}
+        {/* ── WALKTHROUGHS ───────────────────────────────────────────────────── */}
         <SectionHeader label="Obhliadky prevádzky" icon="walk-outline" done={walkDone} total={tableData.length} T={T} />
         <View style={s.walkWrap}>
           {tableData.map((row, i) => {
@@ -538,7 +560,7 @@ export default function ShiftChecklistScreen() {
           })}
         </View>
 
-        {/* ── TABLE ─────────────────────────────────────────────────────────── */}
+        {/* ── TABLE ──────────────────────────────────────────────────────────── */}
         <SectionHeader label="Plan / Realita" icon="bar-chart-outline" T={T} />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom: 6}}>
           <View>
@@ -662,12 +684,191 @@ export default function ShiftChecklistScreen() {
         </View>
 
       </ScrollView>
+
+      {/* ── SETTINGS MODAL ─────────────────────────────────────────────────── */}
+      <Modal
+        visible={showSettings}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowSettings(false)}
+      >
+        <View style={[sm.container, {backgroundColor: T.background}]}>
+
+          {/* Header */}
+          <View style={[sm.header, {borderBottomColor: T.border}]}>
+            <Text style={[sm.title, {color: T.text}]}>Nastavenia</Text>
+            <TouchableOpacity
+              style={[sm.closeBtn, {backgroundColor: T.card, borderColor: T.border}]}
+              onPress={() => setShowSettings(false)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="close" size={20} color={T.icon} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={sm.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+            {/* ─── VZHĽAD ─── */}
+            <Text style={[sm.sectionLabel, {color: T.subText}]}>VZHĽAD</Text>
+            <View style={[sm.card, {backgroundColor: T.card, borderColor: T.border}]}>
+              <View style={sm.row}>
+                <View style={sm.rowLeft}>
+                  <View style={[sm.iconBox, {backgroundColor: darkMode ? '#1e3a5f' : '#eff6ff'}]}>
+                    <Ionicons name={darkMode ? 'moon' : 'sunny'} size={16} color={darkMode ? '#93c5fd' : '#3b82f6'} />
+                  </View>
+                  <Text style={[sm.rowLabel, {color: T.text}]}>Tmavý režim</Text>
+                </View>
+                <Switch
+                  value={darkMode}
+                  onValueChange={setDarkMode}
+                  trackColor={{false:'#cbd5e1', true:'#3b82f6'}}
+                  thumbColor="#fff"
+                />
+              </View>
+            </View>
+
+            {/* ─── EDITOVANIE ─── */}
+            <Text style={[sm.sectionLabel, {color: T.subText}]}>EDITOVANIE</Text>
+            <View style={[sm.card, {backgroundColor: T.card, borderColor: T.border}]}>
+              {/* Status badge */}
+              <View style={[sm.badge, {backgroundColor: editingEnabled ? '#f0fdf4' : '#fef2f2', borderColor: editingEnabled ? '#86efac' : '#fca5a5'}]}>
+                <Ionicons
+                  name={editingEnabled ? 'lock-open-outline' : 'lock-closed-outline'}
+                  size={14}
+                  color={editingEnabled ? '#16a34a' : '#dc2626'}
+                />
+                <Text style={[sm.badgeText, {color: editingEnabled ? '#16a34a' : '#dc2626'}]}>
+                  {editingEnabled ? 'Editovanie je aktívne' : 'Editovanie je zamknuté'}
+                </Text>
+              </View>
+
+              {!editingEnabled ? (
+                <>
+                  {/* Password field */}
+                  <View style={[sm.passwordRow, {backgroundColor: T.inputBg, borderColor: T.border}]}>
+                    <Ionicons name="key-outline" size={17} color={T.placeholder} style={{marginRight: 10}} />
+                    <TextInput
+                      style={[sm.passwordInput, {color: T.inputText}]}
+                      placeholder="Heslo pre editovanie"
+                      placeholderTextColor={T.placeholder}
+                      secureTextEntry={!showPassword}
+                      value={password}
+                      onChangeText={setPassword}
+                      onSubmitEditing={unlockEditing}
+                      returnKeyType="done"
+                    />
+                    <TouchableOpacity onPress={() => setShowPassword(p => !p)} activeOpacity={0.7}>
+                      <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={17} color={T.placeholder} />
+                    </TouchableOpacity>
+                  </View>
+                  <TouchableOpacity style={[sm.actionBtn, {backgroundColor: ACCENT}]} onPress={unlockEditing} activeOpacity={0.85}>
+                    <Ionicons name="lock-open-outline" size={17} color="#111" style={{marginRight: 8}} />
+                    <Text style={[sm.actionBtnTxt, {color: '#111'}]}>Odomknúť editovanie</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <TouchableOpacity style={[sm.actionBtn, {backgroundColor: DANGER}]} onPress={() => setEditingEnabled(false)} activeOpacity={0.85}>
+                  <Ionicons name="lock-closed-outline" size={17} color="#fff" style={{marginRight: 8}} />
+                  <Text style={[sm.actionBtnTxt, {color: '#fff'}]}>Zamknúť editovanie</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* ─── NOTIFIKÁCIE ─── */}
+            <Text style={[sm.sectionLabel, {color: T.subText}]}>NOTIFIKÁCIE</Text>
+            <View style={[sm.card, {backgroundColor: T.card, borderColor: T.border}]}>
+              <View style={[sm.infoBox, {backgroundColor: darkMode ? '#0c1a2e' : '#eff6ff'}]}>
+                <Ionicons name="information-circle-outline" size={16} color={darkMode ? '#93c5fd' : '#3b82f6'} style={{marginRight: 8, marginTop: 1}} />
+                <Text style={[sm.infoText, {color: darkMode ? '#93c5fd' : '#1e40af'}]}>
+                  Notifikácie sa automaticky naplánujú pri každej zmene.{'\n'}
+                  Ranná zmena: pripomienky pred 08:30{'\n'}
+                  Obedná zmena: pripomienky pred 15:00
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[sm.actionBtn, {backgroundColor: darkMode ? '#111e34' : '#f1f5f9', borderWidth: 1, borderColor: T.border}]}
+                onPress={async () => {
+                  if (Platform.OS === 'web') {
+                    Alert.alert('Info','Notifikácie sú dostupné len na mobilných zariadeniach.');
+                    return;
+                  }
+                  await scheduleAllNotifications();
+                  Alert.alert('Hotovo','Notifikácie boli znovu naplánované.');
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="notifications-outline" size={17} color={T.text} style={{marginRight: 8}} />
+                <Text style={[sm.actionBtnTxt, {color: T.text}]}>Znovu naplánovať notifikácie</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* ─── HESLO ─── */}
+            <Text style={[sm.sectionLabel, {color: T.subText}]}>HESLO</Text>
+            <View style={[sm.card, {backgroundColor: T.card, borderColor: T.border}]}>
+              {!showChangePw ? (
+                <TouchableOpacity
+                  style={[sm.actionBtn, {backgroundColor: darkMode ? '#111e34' : '#f1f5f9', borderWidth: 1, borderColor: T.border}]}
+                  onPress={() => setShowChangePw(true)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="key-outline" size={17} color={T.text} style={{marginRight: 8}} />
+                  <Text style={[sm.actionBtnTxt, {color: T.text}]}>Zmeniť heslo</Text>
+                </TouchableOpacity>
+              ) : (
+                <>
+                  {[
+                    { label: 'Aktuálne heslo', value: cpCurrent, setter: setCpCurrent, show: showCpCurrent, toggleShow: () => setShowCpCurrent(p => !p) },
+                    { label: 'Nové heslo',      value: cpNew,     setter: setCpNew,     show: showCpNew,     toggleShow: () => setShowCpNew(p => !p) },
+                    { label: 'Potvrď heslo',    value: cpConfirm, setter: setCpConfirm, show: showCpConfirm, toggleShow: () => setShowCpConfirm(p => !p) },
+                  ].map(({ label, value, setter, show, toggleShow }) => (
+                    <View key={label} style={[sm.passwordRow, {backgroundColor: T.inputBg, borderColor: T.border, marginBottom: 8}]}>
+                      <Ionicons name="key-outline" size={17} color={T.placeholder} style={{marginRight: 10}} />
+                      <TextInput
+                        style={[sm.passwordInput, {color: T.inputText}]}
+                        placeholder={label}
+                        placeholderTextColor={T.placeholder}
+                        secureTextEntry={!show}
+                        value={value}
+                        onChangeText={setter}
+                        returnKeyType="done"
+                      />
+                      <TouchableOpacity onPress={toggleShow} activeOpacity={0.7}>
+                        <Ionicons name={show ? 'eye-off-outline' : 'eye-outline'} size={17} color={T.placeholder} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                  <View style={{flexDirection:'row', gap: 8}}>
+                    <TouchableOpacity
+                      style={[sm.actionBtn, {flex:1, backgroundColor: darkMode ? '#111e34' : '#f1f5f9', borderWidth: 1, borderColor: T.border}]}
+                      onPress={() => { setShowChangePw(false); setCpCurrent(''); setCpNew(''); setCpConfirm(''); }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[sm.actionBtnTxt, {color: T.text}]}>Zrušiť</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[sm.actionBtn, {flex:1, backgroundColor: ACCENT}]}
+                      onPress={changePassword}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="checkmark-outline" size={17} color="#111" style={{marginRight: 6}} />
+                      <Text style={[sm.actionBtnTxt, {color: '#111'}]}>Uložiť</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
+
+            <View style={{height: 40}} />
+          </ScrollView>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Reusable sub-components (module-level — never re-created on parent render)
+// Sub-components
 // ─────────────────────────────────────────────────────────────────────────────
 function SectionHeader({ label, icon, done, total, T }) {
   const hasProgress = done !== undefined && total !== undefined;
@@ -710,6 +911,7 @@ function CheckRow({ item, checked, editable, darkMode, T, onToggle, onChangeText
         }]}
         value={item}
         editable={editable}
+        multiline
         onChangeText={onChangeText}
       />
       {editable && (
@@ -807,14 +1009,6 @@ const s = StyleSheet.create({
   date:            {fontSize:13, fontWeight:'600', letterSpacing:0.2},
   settingsBtn:     {width:42, height:42, borderRadius:13, borderWidth:1, alignItems:'center', justifyContent:'center', marginLeft:12, marginTop:2, ...SHADOW},
   input:           {borderRadius:12, borderWidth:1.5, paddingHorizontal:14, paddingVertical:13, marginBottom:14, fontSize:15, fontWeight:'500', ...SHADOW},
-  card:            {borderRadius:16, borderWidth:1, padding:18, marginBottom:18, ...SHADOW_MD},
-  cardTitle:       {fontSize:16, fontWeight:'800', letterSpacing:-0.3, marginBottom:16},
-  settingRow:      {flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingBottom:14, borderBottomWidth:1},
-  settingLeft:     {flexDirection:'row', alignItems:'center', gap:10},
-  settingIcon:     {width:28, height:28, borderRadius:8, alignItems:'center', justifyContent:'center'},
-  settingLabel:    {fontSize:15, fontWeight:'600'},
-  unlockBtn:       {flexDirection:'row', alignItems:'center', justifyContent:'center', backgroundColor:ACCENT, paddingVertical:13, borderRadius:12, ...SHADOW},
-  unlockTxt:       {fontWeight:'700', fontSize:15, color:'#111'},
   shiftToggleWrap: {flexDirection:'row', borderRadius:14, borderWidth:1, padding:4, marginBottom:22, ...SHADOW},
   shiftBtn:        {flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', paddingVertical:11, borderRadius:11},
   shiftActive:     {backgroundColor:ACCENT, ...Platform.select({ios:{shadowColor:ACCENT,shadowOffset:{width:0,height:2},shadowOpacity:0.4,shadowRadius:6},android:{elevation:3}})},
@@ -852,9 +1046,36 @@ const sh = StyleSheet.create({
 });
 
 const cr = StyleSheet.create({
-  row:       {flexDirection:'row', alignItems:'center', borderRadius:13, borderWidth:1.5, paddingHorizontal:12, paddingVertical:11, marginBottom:8,
+  row:       {flexDirection:'row', alignItems:'flex-start', borderRadius:13, borderWidth:1.5, paddingHorizontal:12, paddingVertical:11, marginBottom:8,
     ...Platform.select({ios:{shadowColor:'#000',shadowOffset:{width:0,height:1},shadowOpacity:0.05,shadowRadius:4},android:{elevation:1}})},
-  checkbox:  {width:26, height:26, borderRadius:8, borderWidth:1.5, alignItems:'center', justifyContent:'center', marginRight:12, flexShrink:0},
+  checkbox:  {width:26, height:26, borderRadius:8, borderWidth:1.5, alignItems:'center', justifyContent:'center', marginRight:12, flexShrink:0, marginTop:1},
   label:     {flex:1, fontSize:14, fontWeight:'500', lineHeight:20},
-  deleteBtn: {padding:4, marginLeft:6},
+  deleteBtn: {padding:4, marginLeft:6, marginTop:1},
+});
+
+const sm = StyleSheet.create({
+  container:    {flex:1},
+  header:       {flexDirection:'row', justifyContent:'space-between', alignItems:'center',
+                  paddingHorizontal:20, paddingTop: Platform.OS === 'ios' ? 20 : 36,
+                  paddingBottom:16, borderBottomWidth:1},
+  title:        {fontSize:20, fontWeight:'800', letterSpacing:-0.4},
+  closeBtn:     {width:34, height:34, borderRadius:17, borderWidth:1, alignItems:'center', justifyContent:'center'},
+  scroll:       {flex:1, paddingHorizontal:20, paddingTop:24},
+  sectionLabel: {fontSize:11, fontWeight:'800', letterSpacing:1.4, marginBottom:10, marginLeft:2},
+  card:         {borderRadius:16, borderWidth:1, marginBottom:28, overflow:'hidden', ...SHADOW_MD},
+  row:          {flexDirection:'row', justifyContent:'space-between', alignItems:'center', padding:16},
+  rowLeft:      {flexDirection:'row', alignItems:'center', gap:12},
+  iconBox:      {width:32, height:32, borderRadius:9, alignItems:'center', justifyContent:'center'},
+  rowLabel:     {fontSize:16, fontWeight:'600'},
+  badge:        {flexDirection:'row', alignItems:'center', gap:7, margin:16, marginBottom:14,
+                  padding:11, borderRadius:11, borderWidth:1},
+  badgeText:    {fontSize:13, fontWeight:'700'},
+  passwordRow:  {flexDirection:'row', alignItems:'center', marginHorizontal:16, marginBottom:12,
+                  padding:13, borderRadius:12, borderWidth:1.5},
+  passwordInput:{flex:1, fontSize:15, fontWeight:'500'},
+  actionBtn:    {flexDirection:'row', alignItems:'center', justifyContent:'center',
+                  margin:16, marginTop:0, padding:14, borderRadius:12},
+  actionBtnTxt: {fontWeight:'700', fontSize:15},
+  infoBox:      {flexDirection:'row', margin:16, marginBottom:12, padding:13, borderRadius:12},
+  infoText:     {flex:1, fontSize:12, lineHeight:19, fontWeight:'500'},
 });
