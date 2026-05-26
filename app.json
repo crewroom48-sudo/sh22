@@ -3,16 +3,12 @@
     "name": "Shift Checklist",
     "slug": "preshift",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "newArchEnabled": false,
 
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
+    "orientation": "portrait",
+
+    "userInterfaceStyle": "light",
+
+    "newArchEnabled": false,
 
     "ios": {
       "supportsTablet": true
@@ -20,11 +16,6 @@
 
     "android": {
       "package": "com.mcdesc.preshift",
-
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
 
       "permissions": [
         "NOTIFICATIONS"
@@ -37,8 +28,10 @@
       "expo-notifications"
     ],
 
-    "web": {
-      "favicon": "./assets/favicon.png"
+    "extra": {
+      "eas": {
+        "projectId": "00422f5f-3a47-4234-b03f-34bfa1450462"
+      }
     }
   }
 }
