@@ -1,0 +1,16 @@
+workflows:
+  expo-android:
+    name: Expo Android Build
+
+    environment:
+      node: latest
+
+    scripts:
+      - npm install
+      - npx expo install
+      - npm install -g eas-cli
+      - eas build --platform android --non-interactive
+
+    artifacts:
+      - "*.apk"
+      - "*.aab"
