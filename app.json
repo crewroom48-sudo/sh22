@@ -6,6 +6,8 @@
 
     "orientation": "portrait",
 
+    "icon": "./r.jpg",
+
     "userInterfaceStyle": "light",
 
     "newArchEnabled": false,
@@ -20,6 +22,11 @@
       "permissions": [
         "NOTIFICATIONS"
       ],
+
+      "adaptiveIcon": {
+        "foregroundImage": "./r.jpg",
+        "backgroundColor": "#ffffff"
+      },
 
       "edgeToEdgeEnabled": true
     },
