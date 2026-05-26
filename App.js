@@ -97,6 +97,16 @@ const [lunchCustomAfterChecklist, setLunchCustomAfterChecklist] = useState([]);
   const tableData  = shiftType === 'morning' ? morningTableData : lunchTableData;
   const walkTimes  = shiftType === 'morning' ? morningWalkTimes : lunchWalkTimes;
   const checklist  = shiftType === 'morning' ? morningChecklist : lunchChecklist;
+
+const mergedDuringChecklist =
+  shiftType === 'morning'
+    ? [...duringChecklist, ...morningCustomDuringChecklist]
+    : [...duringChecklist, ...lunchCustomDuringChecklist];
+
+const mergedAfterChecklist =
+  shiftType === 'morning'
+    ? [...afterChecklist, ...morningCustomAfterChecklist]
+    : [...afterChecklist, ...lunchCustomAfterChecklist];
   const currentHoursForShift = shiftType === 'morning' ? morningHours : lunchHours;
 
   const setTableData = (d) => shiftType === 'morning' ? setMorningTableData(d) : setLunchTableData(d);
@@ -201,6 +211,12 @@ const [lunchCustomAfterChecklist, setLunchCustomAfterChecklist] = useState([]);
         setHoursWorked(p.hoursWorked || '');
         setNotes(p.notes || '');
         setDarkMode(p.darkMode || false);
+
+        setMorningCustomDuringChecklist(p.morningCustomDuringChecklist || []);
+        setLunchCustomDuringChecklist(p.lunchCustomDuringChecklist || []);
+
+        setMorningCustomAfterChecklist(p.morningCustomAfterChecklist || []);
+        setLunchCustomAfterChecklist(p.lunchCustomAfterChecklist || []);
         if (p.morningTableData?.length) setMorningTableData(p.morningTableData);
         if (p.morningWalkTimes?.length) setMorningWalkTimes(p.morningWalkTimes);
         if (p.lunchTableData?.length)   setLunchTableData(p.lunchTableData);
@@ -220,6 +236,10 @@ const [lunchCustomAfterChecklist, setLunchCustomAfterChecklist] = useState([]);
         name, checks, duringChecks, afterChecks, walkChecks,
         hoursWorked, notes, darkMode,
         morningTableData, morningWalkTimes, lunchTableData, lunchWalkTimes,
+        morningCustomDuringChecklist,
+        lunchCustomDuringChecklist,
+        morningCustomAfterChecklist,
+        lunchCustomAfterChecklist,
       }));
       await AsyncStorage.setItem('morningChecklist', JSON.stringify(morningChecklist));
       await AsyncStorage.setItem('lunchChecklist',   JSON.stringify(lunchChecklist));
@@ -349,7 +369,7 @@ const [lunchCustomAfterChecklist, setLunchCustomAfterChecklist] = useState([]);
         {/* before + during checklists */}
         {[
           {label:'Pred zmenou',  items:checklist,       toggle:toggleCheck,        stateObj:checks,       prefix:`${shiftType}_before`, section:'before'},
-          {label:'Počas zmeny',  items:duringChecklist,  toggle:toggleDuringCheck,  stateObj:duringChecks,  prefix:`${shiftType}_during`, section:'during'},
+          {label:'Počas zmeny',  items:mergedDuringChecklist,  toggle:toggleDuringCheck,  stateObj:duringChecks,  prefix:`${shiftType}_during`, section:'during'},
         ].map(({label,items,toggle,stateObj,prefix,section})=>(
           <View key={section}>
             <Text style={[s.section,{color:theme.text}]}>{label}</Text>
@@ -436,7 +456,7 @@ const [lunchCustomAfterChecklist, setLunchCustomAfterChecklist] = useState([]);
 
         {/* after shift */}
         <Text style={[s.section,{color:theme.text}]}>Po zmene</Text>
-        {afterChecklist.map((item,i)=>(
+        {mergedAfterChecklist.map((item,i)=>(
           <View key={i} style={[s.checkRow,{backgroundColor:theme.rowBg}]}>
             <TextInput style={[s.rowLabel,{color:theme.rowText}]} value={item} editable={editingEnabled} onChangeText={(v)=>updateChecklist('after',i,v)}/>
             {editingEnabled && <TouchableOpacity onPress={()=>deleteChecklistItem('after',i)}><Text style={s.del}>X</Text></TouchableOpacity>}
