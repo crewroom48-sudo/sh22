@@ -11,8 +11,16 @@ workflows:
       vars:
         EAS_BUILD_NO_EXPO_GO_WARNING: "true"
 
+    cache:
+      cache_paths:
+        - ~/.npm
+
     scripts:
+      - rm -rf node_modules
+      - rm -f package-lock.json
+
       - npm install
+
       - npm install -g eas-cli
 
       - npx eas-cli@latest init --id 00422f5f-3a47-4234-b03f-34bfa1450462
