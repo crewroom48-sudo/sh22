@@ -12,15 +12,13 @@ workflows:
     scripts:
       - rm -rf node_modules
       - rm -f package-lock.json
-
       - npm install
 
-      # vygeneruje android priečinok z Expo projektu
-      - npx expo prebuild --platform android
+      # vytvor android priečinok
+      - npx expo prebuild --platform android --non-interactive
 
-      # build APK priamo cez Gradle
-      - cd android
-      - ./gradlew assembleRelease
+      # build APK (v jednom riadku!)
+      - cd android && chmod +x gradlew && ./gradlew assembleRelease
 
     artifacts:
       - android/app/build/outputs/apk/release/*.apk
