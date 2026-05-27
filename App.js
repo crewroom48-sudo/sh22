@@ -190,12 +190,19 @@ export default function ShiftChecklistScreen() {
           Alert.alert('Upozornenie','Notifikácie nie sú povolené. Zapni ich v nastaveniach telefónu.');
       }
       if (Platform.OS === 'android') {
+        // Delete the channel first — Android locks channel settings after first
+        // creation, so a plain setNotificationChannelAsync call cannot update
+        // sound or importance on an already-existing channel.
+        await Notifications.deleteNotificationChannelAsync('default');
         await Notifications.setNotificationChannelAsync('default', {
           name: 'Shift Checklist',
-          importance: Notifications.AndroidImportance.HIGH,
+          importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 250, 250, 250],
           lightColor: '#FBBF24',
-          sound: true,
+          sound: 'default',
+          enableVibrate: true,
+          showBadge: false,
+          lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         });
       }
       await loadAll();
@@ -311,63 +318,86 @@ export default function ShiftChecklistScreen() {
     if (Platform.OS === 'web') return;
     try {
       await Notifications.cancelAllScheduledNotificationsAsync();
+      // Snapshot time AFTER cancel so the "is this in the future?" check is
+      // as accurate as possible.
       const now = new Date();
       const todayAt = (h, m) => { const d = new Date(); d.setHours(h, m, 0, 0); return d; };
 
-      // Shift boundary: morning runs 00:00–14:59, afternoon runs 15:00–23:59.
-      // Morning table notification for row 14 would fire at 15:16 (after morning
-      // shift ends) — we cap morning table notifications at 14:59 to prevent that.
-      const morningCutoff = todayAt(15, 0);
+      // Helper: returns seconds until fireAt, or null if fireAt is in the past.
+      const secsUntil = (fireAt) => {
+        const s = Math.round((fireAt.getTime() - now.getTime()) / 1000);
+        return s > 0 ? s : null;
+      };
+
+      // Build a trigger for a one-shot future date.
+      // type: DATE is required in expo-notifications ~0.29 (SDK 52) — omitting
+      // it causes the trigger to be silently ignored and the notification fires
+      // immediately instead of at the scheduled time.
+      const makeTrigger = (fireAt) => ({
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: fireAt,
+        channelId: 'default',
+      });
+
+      // Derive the morning cutoff dynamically from the first hour of the
+      // afternoon table. If the afternoon first hour is 15, cutoff = 15:00;
+      // if the user changes it to 14, cutoff = 14:00 — fully automatic.
+      // Falls back to 23:59 if the afternoon table is empty so morning rows
+      // are never unexpectedly blocked.
+      const afFirstHour = afternoonTable.length ? parseInt(afternoonTable[0].hour) : NaN;
+      const morningCutoff = !isNaN(afFirstHour) ? todayAt(afFirstHour, 0) : todayAt(23, 59);
 
       // ── 1. Morning table notifications ───────────────────────────────────
       // Each row fires at (hour+1):16 if salesReality or tcReality is empty.
-      // Rows whose (hour+1):16 falls at or after 15:00 are skipped — morning
-      // shift has already ended by then.
       for (const row of morningTable) {
         const h = parseInt(row.hour);
         if (isNaN(h)) continue;
         const fireAt = todayAt(h + 1, 16);
-        if (fireAt >= morningCutoff) continue;
-        if (fireAt > now && (row.salesReality === '' || row.tcReality === '')) {
+        if (fireAt >= morningCutoff) continue;       // stop before 15:00
+        if (secsUntil(fireAt) === null) continue;    // already past
+        if (row.salesReality === '' || row.tcReality === '') {
           await Notifications.scheduleNotificationAsync({
             identifier: `table_morning_${row.hour}`,
             content: {
               title: `Nevypísal si hodinu ${row.hour}:00`,
               body: 'Sales Real alebo TC Real nie je vyplnené!',
+              sound: 'default',
             },
-            trigger: { date: fireAt, channelId: 'default' },
+            trigger: makeTrigger(fireAt),
           });
         }
       }
 
       // ── 2. Afternoon table notifications ─────────────────────────────────
-      // All afternoon rows fire at (hour+1):16. Because AFTERNOON_HOURS starts
-      // at 15, the earliest fire time is 16:16 — safely within afternoon shift.
+      // AFTERNOON_HOURS starts at 15, so the earliest fire time is 16:16 —
+      // always within afternoon shift, no cutoff needed.
       for (const row of afternoonTable) {
         const h = parseInt(row.hour);
         if (isNaN(h)) continue;
         const fireAt = todayAt(h + 1, 16);
-        if (fireAt > now && (row.salesReality === '' || row.tcReality === '')) {
+        if (secsUntil(fireAt) === null) continue;
+        if (row.salesReality === '' || row.tcReality === '') {
           await Notifications.scheduleNotificationAsync({
             identifier: `table_afternoon_${row.hour}`,
             content: {
               title: `Nevypísal si hodinu ${row.hour}:00`,
               body: 'Sales Real alebo TC Real nie je vyplnené!',
+              sound: 'default',
             },
-            trigger: { date: fireAt, channelId: 'default' },
+            trigger: makeTrigger(fireAt),
           });
         }
       }
 
       // ── 3. Morning preparation notification ──────────────────────────────
-      // One notification at the first morning table row's hour (e.g. 08:00).
-      // Only fires if the before-checklist is not yet complete and the time
-      // is still in the future.
+      // Fires at firstHour:01 so it arrives just after the shift starts.
+      // One shot only — the fireAt > now guard ensures it never re-queues
+      // after it has fired.
       if (morningTable.length) {
         const firstHour = parseInt(morningTable[0].hour);
         if (!isNaN(firstHour)) {
-          const fireAt = todayAt(firstHour, 0);
-          if (fireAt > now) {
+          const fireAt = todayAt(firstHour, 1);
+          if (secsUntil(fireAt) !== null) {
             const complete =
               morningBefore.length > 0 &&
               morningBefore.every((_, i) => !!checks[`morning_before_${i}`]);
@@ -377,8 +407,9 @@ export default function ShiftChecklistScreen() {
                 content: {
                   title: 'Ranná zmena začína!',
                   body: 'Checklist pred zmenou ešte nie je dokončený!',
+                  sound: 'default',
                 },
-                trigger: { date: fireAt, channelId: 'default' },
+                trigger: makeTrigger(fireAt),
               });
             }
           }
@@ -386,14 +417,13 @@ export default function ShiftChecklistScreen() {
       }
 
       // ── 4. Afternoon preparation notification ─────────────────────────────
-      // One notification at the first afternoon table row's hour (e.g. 15:00).
-      // Scheduled upfront so it fires correctly even if the app is closed
-      // during morning hours.
+      // Fires at firstHour:01 (e.g. 15:01). Scheduled upfront so it fires
+      // even if the app is closed or the phone is locked during morning hours.
       if (afternoonTable.length) {
         const firstHour = parseInt(afternoonTable[0].hour);
         if (!isNaN(firstHour)) {
-          const fireAt = todayAt(firstHour, 0);
-          if (fireAt > now) {
+          const fireAt = todayAt(firstHour, 1);
+          if (secsUntil(fireAt) !== null) {
             const complete =
               afternoonBefore.length > 0 &&
               afternoonBefore.every((_, i) => !!checks[`afternoon_before_${i}`]);
@@ -403,8 +433,9 @@ export default function ShiftChecklistScreen() {
                 content: {
                   title: 'Obedná zmena začína!',
                   body: 'Checklist pred zmenou ešte nie je dokončený!',
+                  sound: 'default',
                 },
-                trigger: { date: fireAt, channelId: 'default' },
+                trigger: makeTrigger(fireAt),
               });
             }
           }
