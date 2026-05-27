@@ -444,6 +444,56 @@ export default function ShiftChecklistScreen() {
     } catch (e) { console.log('Notification error:', e); }
   };
 
+  // ── Test notifications ────────────────────────────────────────────────────────
+  // Fires a sample of every notification type in 10 seconds so the user can
+  // verify sound, vibration, and lock-screen behaviour without waiting for a
+  // real shift hour. Uses unique "test_" identifiers so they never cancel or
+  // conflict with the real scheduled notifications.
+  const sendTestNotifications = async () => {
+    if (Platform.OS === 'web') {
+      Alert.alert('Info', 'Notifikácie sú dostupné len na mobilných zariadeniach.');
+      return;
+    }
+    try {
+      const inSecs = (s) => ({
+        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds: s,
+        repeats: false,
+        channelId: 'default',
+      });
+
+      // 1. Preparation notification — fires in 10 s
+      await Notifications.scheduleNotificationAsync({
+        identifier: 'test_prep',
+        content: {
+          title: '🔔 TEST — Príprava zmeny',
+          body: 'Toto je testovacia notifikácia pre Prípravu zmeny.',
+          sound: 'default',
+        },
+        trigger: inSecs(10),
+      });
+
+      // 2. Table row notification — fires in 20 s
+      await Notifications.scheduleNotificationAsync({
+        identifier: 'test_table',
+        content: {
+          title: '🔔 TEST — Nevypísal si hodinu 08:00',
+          body: 'Toto je testovacia notifikácia pre hodinový riadok tabuľky.',
+          sound: 'default',
+        },
+        trigger: inSecs(20),
+      });
+
+      Alert.alert(
+        'Test naplánovaný ✅',
+        'Prvá notifikácia príde za 10 sekúnd.\nDruhá notifikácia príde za 20 sekúnd.\n\nZamkni telefón alebo minimalizuj appku — notifikácie musia prísť aj tak.',
+      );
+    } catch (e) {
+      console.log('Test notification error:', e);
+      Alert.alert('Chyba', 'Nepodarilo sa naplánovať testovací notifikáciu.');
+    }
+  };
+
   // ── Toggle helpers ────────────────────────────────────────────────────────────
   const toggleCheck       = (k) => setChecks(p       => ({...p, [k]: !p[k]}));
   const toggleDuringCheck = (k) => setDuringChecks(p => ({...p, [k]: !p[k]}));
@@ -923,6 +973,24 @@ export default function ShiftChecklistScreen() {
               >
                 <Ionicons name="notifications-outline" size={17} color={T.text} style={{marginRight: 8}} />
                 <Text style={[sm.actionBtnTxt, {color: T.text}]}>Znovu naplánovať notifikácie</Text>
+              </TouchableOpacity>
+
+              {/* ─── Test buttons ─── */}
+              <View style={{height: 1, backgroundColor: T.border, marginHorizontal: 16, marginBottom: 12}} />
+              <View style={[sm.infoBox, {backgroundColor: darkMode ? '#1a1200' : '#fffbeb', borderColor: darkMode ? '#78350f' : '#fcd34d', borderWidth: 1, marginBottom: 4}]}>
+                <Ionicons name="flask-outline" size={15} color={darkMode ? '#fbbf24' : '#92400e'} style={{marginRight: 8, marginTop: 1}} />
+                <Text style={[sm.infoText, {color: darkMode ? '#fbbf24' : '#92400e'}]}>
+                  Testovací režim: notifikácie prídu za 10 s a 20 s.{'\n'}
+                  Zamkni telefón alebo minimalizuj appku pred stlačením.
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[sm.actionBtn, {backgroundColor: '#fbbf24'}]}
+                onPress={sendTestNotifications}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="flask-outline" size={17} color="#111" style={{marginRight: 8}} />
+                <Text style={[sm.actionBtnTxt, {color: '#111'}]}>Otestovať notifikácie (10 s / 20 s)</Text>
               </TouchableOpacity>
             </View>
 
