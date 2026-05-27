@@ -6,7 +6,7 @@
 
     "orientation": "portrait",
 
-    "icon": "./r.jpg",
+    "icon": "./r.png",
 
     "userInterfaceStyle": "light",
 
@@ -27,7 +27,7 @@
       ],
 
       "adaptiveIcon": {
-        "foregroundImage": "./r.jpg",
+        "foregroundImage": "./r.png",
         "backgroundColor": "#ffffff"
       },
 
