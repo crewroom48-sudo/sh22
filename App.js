@@ -189,6 +189,15 @@ export default function ShiftChecklistScreen() {
         if (status !== 'granted')
           Alert.alert('Upozornenie','Notifikácie nie sú povolené. Zapni ich v nastaveniach telefónu.');
       }
+      if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('default', {
+          name: 'Shift Checklist',
+          importance: Notifications.AndroidImportance.HIGH,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FBBF24',
+          sound: true,
+        });
+      }
       await loadAll();
     })();
   }, []);
@@ -237,6 +246,9 @@ export default function ShiftChecklistScreen() {
 
     } catch (e) { console.log('loadAll error:', e); }
     isInitialized.current = true;
+    if (Platform.OS !== 'web') {
+      setTimeout(() => scheduleAllNotifications(), 500);
+    }
   };
 
   // ── Autosave ─────────────────────────────────────────────────────────────────
@@ -302,7 +314,7 @@ export default function ShiftChecklistScreen() {
               title: `Nevypísal si hodinu ${row.hour}:00`,
               body: 'Sales Real alebo TC Real nie je vyplnené!',
             },
-            trigger: { date: fireAt },
+            trigger: { date: fireAt, channelId: 'default' },
           });
         }
       }
@@ -329,7 +341,7 @@ export default function ShiftChecklistScreen() {
               title: `${shiftName} začína!`,
               body: 'Checklist pred zmenou ešte nie je dokončený!',
             },
-            trigger: { date: fireAt },
+            trigger: { date: fireAt, channelId: 'default' },
           });
         }
       }
@@ -797,8 +809,8 @@ export default function ShiftChecklistScreen() {
                 <Ionicons name="information-circle-outline" size={16} color={darkMode ? '#93c5fd' : '#3b82f6'} style={{marginRight: 8, marginTop: 1}} />
                 <Text style={[sm.infoText, {color: darkMode ? '#93c5fd' : '#1e40af'}]}>
                   Notifikácie sa automaticky naplánujú pri každej zmene.{'\n'}
-                  Ranná zmena: notifikácia v čase 1. riadku tabuľky{'\n'}
-                  Obedná zmena: notifikácia v čase 1. riadku tabuľky
+                  Tabuľka: upozornenie o 15 min po každej hodine.{'\n'}
+                  Pred zmenou: upozornenie v čase 1. riadku tabuľky.
                 </Text>
               </View>
               <TouchableOpacity
