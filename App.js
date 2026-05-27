@@ -286,12 +286,26 @@ export default function ShiftChecklistScreen() {
   useEffect(() => { save(KEYS.afternoon_walk,   afternoonWalk);   }, [afternoonWalk]);
 
   // ── Notifications ─────────────────────────────────────────────────────────────
+  // Both shifts are scheduled upfront so notifications fire even when the app is
+  // closed or the phone is locked. The fireAt > now guard prevents rescheduling
+  // notifications that have already fired. Unique identifiers ensure only one
+  // notification per slot ever exists in the OS queue at a time. A 1-second
+  // debounce collapses rapid state changes (checkbox taps, table edits) into a
+  // single scheduling run to avoid the cancel/reschedule race condition.
+
+  const scheduleDebounceTimer = React.useRef(null);
+
+  const debouncedSchedule = () => {
+    if (!isInitialized.current) return;
+    if (Platform.OS === 'web') return;
+    if (scheduleDebounceTimer.current) clearTimeout(scheduleDebounceTimer.current);
+    scheduleDebounceTimer.current = setTimeout(() => scheduleAllNotifications(), 1000);
+  };
+
   useEffect(() => {
     if (!isInitialized.current) return;
-    if (Platform.OS !== 'web') scheduleAllNotifications();
-  }, [name, checks, duringChecks, afterChecks, walkChecks, hoursWorked,
-      morningTable, afternoonTable, morningWalk, afternoonWalk, shiftType,
-      morningBefore, afternoonBefore]);
+    if (Platform.OS !== 'web') debouncedSchedule();
+  }, [checks, morningTable, afternoonTable, morningBefore, afternoonBefore]);
 
   const scheduleAllNotifications = async () => {
     if (Platform.OS === 'web') return;
@@ -300,16 +314,23 @@ export default function ShiftChecklistScreen() {
       const now = new Date();
       const todayAt = (h, m) => { const d = new Date(); d.setHours(h, m, 0, 0); return d; };
 
-      // ── 1. Hourly table reminders — schedule for BOTH shifts ─────────────
-      // Each row fires at (hour+1):15 if salesReality or tcReality is empty.
-      // We schedule for both morningTable and afternoonTable so the active
-      // shift at any point in the day is always covered.
-      for (const row of [...morningTable, ...afternoonTable]) {
+      // Shift boundary: morning runs 00:00–14:59, afternoon runs 15:00–23:59.
+      // Morning table notification for row 14 would fire at 15:16 (after morning
+      // shift ends) — we cap morning table notifications at 14:59 to prevent that.
+      const morningCutoff = todayAt(15, 0);
+
+      // ── 1. Morning table notifications ───────────────────────────────────
+      // Each row fires at (hour+1):16 if salesReality or tcReality is empty.
+      // Rows whose (hour+1):16 falls at or after 15:00 are skipped — morning
+      // shift has already ended by then.
+      for (const row of morningTable) {
         const h = parseInt(row.hour);
         if (isNaN(h)) continue;
-        const fireAt = todayAt(h + 1, 15);
+        const fireAt = todayAt(h + 1, 16);
+        if (fireAt >= morningCutoff) continue;
         if (fireAt > now && (row.salesReality === '' || row.tcReality === '')) {
           await Notifications.scheduleNotificationAsync({
+            identifier: `table_morning_${row.hour}`,
             content: {
               title: `Nevypísal si hodinu ${row.hour}:00`,
               body: 'Sales Real alebo TC Real nie je vyplnené!',
@@ -319,30 +340,74 @@ export default function ShiftChecklistScreen() {
         }
       }
 
-      // ── 2. Before-shift checklist reminders — one per shift at first table hour ──
-      // For each shift, schedule a notification at the time of the first table row.
-      // If the prep checklist is already done, no notification is scheduled.
-      const shiftConfigs = [
-        { tableRows: morningTable,   beforeList: morningBefore,   shiftPfx: 'morning',   shiftName: 'Ranná zmena' },
-        { tableRows: afternoonTable, beforeList: afternoonBefore, shiftPfx: 'afternoon', shiftName: 'Obedná zmena' },
-      ];
-      for (const { tableRows, beforeList, shiftPfx, shiftName } of shiftConfigs) {
-        if (!tableRows.length) continue;
-        const firstHour = parseInt(tableRows[0].hour);
-        if (isNaN(firstHour)) continue;
-        const fireAt = todayAt(firstHour, 0);
-        if (fireAt <= now) continue;
-        const complete =
-          beforeList.length > 0 &&
-          beforeList.every((_, i) => !!checks[`${shiftPfx}_before_${i}`]);
-        if (!complete) {
+      // ── 2. Afternoon table notifications ─────────────────────────────────
+      // All afternoon rows fire at (hour+1):16. Because AFTERNOON_HOURS starts
+      // at 15, the earliest fire time is 16:16 — safely within afternoon shift.
+      for (const row of afternoonTable) {
+        const h = parseInt(row.hour);
+        if (isNaN(h)) continue;
+        const fireAt = todayAt(h + 1, 16);
+        if (fireAt > now && (row.salesReality === '' || row.tcReality === '')) {
           await Notifications.scheduleNotificationAsync({
+            identifier: `table_afternoon_${row.hour}`,
             content: {
-              title: `${shiftName} začína!`,
-              body: 'Checklist pred zmenou ešte nie je dokončený!',
+              title: `Nevypísal si hodinu ${row.hour}:00`,
+              body: 'Sales Real alebo TC Real nie je vyplnené!',
             },
             trigger: { date: fireAt, channelId: 'default' },
           });
+        }
+      }
+
+      // ── 3. Morning preparation notification ──────────────────────────────
+      // One notification at the first morning table row's hour (e.g. 08:00).
+      // Only fires if the before-checklist is not yet complete and the time
+      // is still in the future.
+      if (morningTable.length) {
+        const firstHour = parseInt(morningTable[0].hour);
+        if (!isNaN(firstHour)) {
+          const fireAt = todayAt(firstHour, 0);
+          if (fireAt > now) {
+            const complete =
+              morningBefore.length > 0 &&
+              morningBefore.every((_, i) => !!checks[`morning_before_${i}`]);
+            if (!complete) {
+              await Notifications.scheduleNotificationAsync({
+                identifier: 'prep_morning',
+                content: {
+                  title: 'Ranná zmena začína!',
+                  body: 'Checklist pred zmenou ešte nie je dokončený!',
+                },
+                trigger: { date: fireAt, channelId: 'default' },
+              });
+            }
+          }
+        }
+      }
+
+      // ── 4. Afternoon preparation notification ─────────────────────────────
+      // One notification at the first afternoon table row's hour (e.g. 15:00).
+      // Scheduled upfront so it fires correctly even if the app is closed
+      // during morning hours.
+      if (afternoonTable.length) {
+        const firstHour = parseInt(afternoonTable[0].hour);
+        if (!isNaN(firstHour)) {
+          const fireAt = todayAt(firstHour, 0);
+          if (fireAt > now) {
+            const complete =
+              afternoonBefore.length > 0 &&
+              afternoonBefore.every((_, i) => !!checks[`afternoon_before_${i}`]);
+            if (!complete) {
+              await Notifications.scheduleNotificationAsync({
+                identifier: 'prep_afternoon',
+                content: {
+                  title: 'Obedná zmena začína!',
+                  body: 'Checklist pred zmenou ešte nie je dokončený!',
+                },
+                trigger: { date: fireAt, channelId: 'default' },
+              });
+            }
+          }
         }
       }
     } catch (e) { console.log('Notification error:', e); }
