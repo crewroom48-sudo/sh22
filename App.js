@@ -61,6 +61,7 @@ const KEYS = {
   afternoon_notes:   'afternoon_notes',
   password:          'shift_custom_password',
   notif_prefs:       'shift_notif_prefs',
+  handover:          'shift_handover_message',
 };
 
 // ─── Default checklist content ────────────────────────────────────────────────
@@ -138,8 +139,9 @@ export default function ShiftChecklistScreen() {
   const [afternoonNotes,      setAfternoonNotes]      = useState('');
   const [darkMode,            setDarkMode]            = useState(false);
   const [showSettings,        setShowSettings]        = useState(false);
-  const [password,            setPassword]            = useState('');
-  const [showPassword,        setShowPassword]        = useState(false);
+  const [showPinModal,        setShowPinModal]        = useState(false);
+  const [pinInput,            setPinInput]            = useState('');
+  const [pinError,            setPinError]            = useState(false);
   const [editingEnabled,      setEditingEnabled]      = useState(false);
   const [customPassword,      setCustomPassword]      = useState('');
   const [showChangePw,        setShowChangePw]        = useState(false);
@@ -149,6 +151,12 @@ export default function ShiftChecklistScreen() {
   const [showCpCurrent,       setShowCpCurrent]       = useState(false);
   const [showCpNew,           setShowCpNew]           = useState(false);
   const [showCpConfirm,       setShowCpConfirm]       = useState(false);
+
+  // ── Handover message ─────────────────────────────────────────────────────────
+  const [handoverDraft,       setHandoverDraft]       = useState('');
+  const [handoverSaved,       setHandoverSaved]       = useState(false);
+  const [showHandoverPopup,   setShowHandoverPopup]   = useState(false);
+  const [handoverPopupMsgs,   setHandoverPopupMsgs]   = useState([]);
 
   // ── Notification preferences ─────────────────────────────────────────────────
   const [notifPrefs, setNotifPrefs] = useState({
@@ -282,6 +290,16 @@ export default function ShiftChecklistScreen() {
       const np = await load(KEYS.notif_prefs, {morningPrep:true,morningTable:true,afternoonPrep:true,afternoonTable:true});
       setNotifPrefs(np);
 
+      // Show handover popup if previous manager left messages
+      const hmRaw = await AsyncStorage.getItem(KEYS.handover);
+      if (hmRaw) {
+        try {
+          const list = JSON.parse(hmRaw);
+          setHandoverPopupMsgs(Array.isArray(list) ? list : [{text: hmRaw, time: ''}]);
+        } catch { setHandoverPopupMsgs([{text: hmRaw, time: ''}]); }
+        setShowHandoverPopup(true);
+      }
+
     } catch (e) { console.log('loadAll error:', e); }
     isInitialized.current = true;
     if (Platform.OS !== 'web') {
@@ -338,6 +356,55 @@ export default function ShiftChecklistScreen() {
   useEffect(() => { save(KEYS.afternoon_after,  afternoonAfter);  }, [afternoonAfter]);
   useEffect(() => { save(KEYS.afternoon_table,  afternoonTable);  }, [afternoonTable]);
   useEffect(() => { save(KEYS.afternoon_walk,   afternoonWalk);   }, [afternoonWalk]);
+
+  // ── Handover save ────────────────────────────────────────────────────────────
+  const saveHandover = async () => {
+    if (!handoverDraft.trim()) return;
+    const raw = await AsyncStorage.getItem(KEYS.handover);
+    let list = [];
+    if (raw) { try { list = JSON.parse(raw); if (!Array.isArray(list)) list = [{text: raw, time: ''}]; } catch { list = [{text: raw, time: ''}]; } }
+    const now = new Date();
+    const time = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+    list.push({ text: handoverDraft.trim(), time });
+    await AsyncStorage.setItem(KEYS.handover, JSON.stringify(list));
+    setHandoverDraft('');
+    setHandoverSaved(true);
+    setTimeout(() => setHandoverSaved(false), 2500);
+  };
+
+  // Načíta správy z AsyncStorage → state (helper)
+  const loadHandoverMsgs = async () => {
+    const raw = await AsyncStorage.getItem(KEYS.handover);
+    if (!raw) return [];
+    try { const l = JSON.parse(raw); return Array.isArray(l) ? l : [{text: raw, time: ''}]; }
+    catch { return [{text: raw, time: ''}]; }
+  };
+
+  // Prepnutie zmeny + zobraz odkaz
+  const switchShift = async (t) => {
+    if (t === shiftType) return;
+    setShiftType(t);
+    const list = await loadHandoverMsgs();
+    if (list.length) { setHandoverPopupMsgs(list); setShowHandoverPopup(true); }
+  };
+
+  // Ručné zobrazenie odkazov
+  const viewHandover = async () => {
+    const list = await loadHandoverMsgs();
+    if (list.length) { setHandoverPopupMsgs(list); setShowHandoverPopup(true); }
+  };
+
+  // Vymazať jednu správu podľa indexu
+  const deleteHandoverMsg = async (idx) => {
+    const updated = handoverPopupMsgs.filter((_, i) => i !== idx);
+    setHandoverPopupMsgs(updated);
+    if (updated.length === 0) {
+      await AsyncStorage.removeItem(KEYS.handover);
+      setShowHandoverPopup(false);
+    } else {
+      await AsyncStorage.setItem(KEYS.handover, JSON.stringify(updated));
+    }
+  };
 
   // ── Notifications ─────────────────────────────────────────────────────────────
   // Both shifts are scheduled upfront so notifications fire even when the app is
@@ -604,14 +671,31 @@ export default function ShiftChecklistScreen() {
   // ── Auth ──────────────────────────────────────────────────────────────────────
   const activePassword = customPassword || EDIT_PASSWORD;
 
-  const unlockEditing = () => {
-    if (password === activePassword) {
+  const unlockEditing = (pin) => {
+    if (pin === activePassword) {
       setEditingEnabled(true);
-      setPassword('');
-      Alert.alert('Odomknuté','Editovanie povolené');
+      setPinInput('');
+      setShowPinModal(false);
+      setPinError(false);
     } else {
-      Alert.alert('Chyba','Nesprávne heslo');
+      setPinError(true);
+      setPinInput('');
+      setTimeout(() => setPinError(false), 800);
     }
+  };
+
+  const handlePinPress = (digit) => {
+    if (pinInput.length >= 4) return;
+    const next = pinInput + digit;
+    setPinInput(next);
+    if (next.length === 4) {
+      setTimeout(() => unlockEditing(next), 120);
+    }
+  };
+
+  const handlePinBack = () => {
+    setPinInput(p => p.slice(0, -1));
+    setPinError(false);
   };
 
   const changePassword = async () => {
@@ -715,7 +799,7 @@ export default function ShiftChecklistScreen() {
             <TouchableOpacity
               key={t}
               style={[s.shiftBtn, shiftType === t && [s.shiftActive, {shadowColor: ACCENT}]]}
-              onPress={() => setShiftType(t)}
+              onPress={() => switchShift(t)}
               activeOpacity={0.8}
             >
               <Ionicons
@@ -887,6 +971,53 @@ export default function ShiftChecklistScreen() {
           />
         </View>
 
+        {/* ── HANDOVER ───────────────────────────────────────────────────────── */}
+        <SectionHeader label="Odkaz pre ďalšiu zmenu" icon="mail-outline" T={T} />
+        <View style={[s.handoverBox, {backgroundColor: T.card, borderColor: T.border}]}>
+          <TextInput
+            style={[s.notesInput, {color: T.text, minHeight: 90}]}
+            placeholder="Napíš správu pre ďalšieho manažéra..."
+            placeholderTextColor={T.placeholder}
+            multiline
+            value={handoverDraft}
+            onChangeText={(v) => { setHandoverDraft(v); setHandoverSaved(false); }}
+          />
+          <View style={[s.handoverDivider, {backgroundColor: T.border}]} />
+          <TouchableOpacity
+            style={[s.handoverBtn, {
+              backgroundColor: handoverSaved
+                ? (darkMode ? '#052e16' : '#f0fdf4')
+                : (handoverDraft.trim() ? ACCENT : (darkMode ? '#1e293b' : '#f1f5f9')),
+            }]}
+            onPress={saveHandover}
+            activeOpacity={0.8}
+            disabled={!handoverDraft.trim() && !handoverSaved}
+          >
+            <Ionicons
+              name={handoverSaved ? 'checkmark-circle' : 'paper-plane-outline'}
+              size={16}
+              color={handoverSaved ? (darkMode ? '#4ade80' : '#16a34a') : (handoverDraft.trim() ? '#111' : T.subText)}
+              style={{marginRight: 8}}
+            />
+            <Text style={[s.handoverBtnTxt, {
+              color: handoverSaved
+                ? (darkMode ? '#4ade80' : '#16a34a')
+                : (handoverDraft.trim() ? '#111' : T.subText),
+            }]}>
+              {handoverSaved ? 'Uložené — vyskočí pri prepnutí zmeny' : 'Uložiť odkaz'}
+            </Text>
+          </TouchableOpacity>
+          <View style={[s.handoverDivider, {backgroundColor: T.border}]} />
+          <TouchableOpacity
+            style={[s.handoverBtn, {backgroundColor: darkMode ? '#1e293b' : '#f1f5f9'}]}
+            onPress={viewHandover}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="eye-outline" size={16} color={T.subText} style={{marginRight: 8}} />
+            <Text style={[s.handoverBtnTxt, {color: T.subText}]}>Zobraziť uložené odkazy</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* ── AFTER SHIFT ────────────────────────────────────────────────────── */}
         <SectionHeader label="Po zmene" icon="moon-outline" done={afterDone} total={afterList.length} T={T} />
         {afterList.map((item, i) => (
@@ -934,219 +1065,352 @@ export default function ShiftChecklistScreen() {
         <View style={[sm.container, {backgroundColor: T.background}]}>
 
           {/* Header */}
-          <View style={[sm.header, {borderBottomColor: T.border}]}>
-            <Text style={[sm.title, {color: T.text}]}>Nastavenia</Text>
+          <View style={[sm.header, {borderBottomColor: T.border, backgroundColor: T.background}]}>
+            <View style={sm.headerLeft}>
+              <View style={sm.headerIconWrap}>
+                <Ionicons name="settings" size={18} color="#fff" />
+              </View>
+              <Text style={[sm.title, {color: T.text}]}>Nastavenia</Text>
+            </View>
             <TouchableOpacity
               style={[sm.closeBtn, {backgroundColor: T.card, borderColor: T.border}]}
               onPress={() => setShowSettings(false)}
               activeOpacity={0.8}
             >
-              <Ionicons name="close" size={20} color={T.icon} />
+              <Ionicons name="close" size={18} color={T.icon} />
             </TouchableOpacity>
           </View>
 
           <ScrollView style={sm.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
             {/* ─── VZHĽAD ─── */}
-            <Text style={[sm.sectionLabel, {color: T.subText}]}>VZHĽAD</Text>
+            <View style={sm.sectionLabelRow}>
+              <Ionicons name="color-palette-outline" size={12} color={T.subText} style={{marginRight: 5}} />
+              <Text style={[sm.sectionLabel, {color: T.subText}]}>VZHĽAD</Text>
+            </View>
             <View style={[sm.card, {backgroundColor: T.card, borderColor: T.border}]}>
               <View style={sm.row}>
                 <View style={sm.rowLeft}>
-                  <View style={[sm.iconBox, {backgroundColor: darkMode ? '#1e3a5f' : '#eff6ff'}]}>
-                    <Ionicons name={darkMode ? 'moon' : 'sunny'} size={16} color={darkMode ? '#93c5fd' : '#3b82f6'} />
+                  <View style={[sm.iconBox, {backgroundColor: darkMode ? '#2d1b69' : '#ede9fe'}]}>
+                    <Ionicons name={darkMode ? 'moon' : 'sunny'} size={17} color={darkMode ? '#a78bfa' : '#7c3aed'} />
                   </View>
-                  <Text style={[sm.rowLabel, {color: T.text}]}>Tmavý režim</Text>
+                  <View style={sm.rowTextBlock}>
+                    <Text style={[sm.rowLabel, {color: T.text}]}>Tmavý režim</Text>
+                    <Text style={[sm.rowSub, {color: T.subText}]}>{darkMode ? 'Aktívny' : 'Neaktívny'}</Text>
+                  </View>
                 </View>
                 <Switch
                   value={darkMode}
                   onValueChange={setDarkMode}
-                  trackColor={{false:'#cbd5e1', true:'#3b82f6'}}
+                  trackColor={{false:'#cbd5e1', true:'#7c3aed'}}
                   thumbColor="#fff"
                 />
               </View>
             </View>
 
             {/* ─── EDITOVANIE ─── */}
-            <Text style={[sm.sectionLabel, {color: T.subText}]}>EDITOVANIE</Text>
+            <View style={sm.sectionLabelRow}>
+              <Ionicons name="pencil-outline" size={12} color={T.subText} style={{marginRight: 5}} />
+              <Text style={[sm.sectionLabel, {color: T.subText}]}>EDITOVANIE</Text>
+            </View>
             <View style={[sm.card, {backgroundColor: T.card, borderColor: T.border}]}>
-              {/* Status badge */}
-              <View style={[sm.badge, {backgroundColor: editingEnabled ? '#f0fdf4' : '#fef2f2', borderColor: editingEnabled ? '#86efac' : '#fca5a5'}]}>
-                <Ionicons
-                  name={editingEnabled ? 'lock-open-outline' : 'lock-closed-outline'}
-                  size={14}
-                  color={editingEnabled ? '#16a34a' : '#dc2626'}
-                />
-                <Text style={[sm.badgeText, {color: editingEnabled ? '#16a34a' : '#dc2626'}]}>
-                  {editingEnabled ? 'Editovanie je aktívne' : 'Editovanie je zamknuté'}
-                </Text>
+              {/* Lock status banner */}
+              <View style={[sm.lockBanner, {
+                backgroundColor: editingEnabled
+                  ? (darkMode ? '#052e16' : '#f0fdf4')
+                  : (darkMode ? '#1a0a0a' : '#fff5f5'),
+                borderBottomColor: editingEnabled
+                  ? (darkMode ? '#14532d' : '#bbf7d0')
+                  : (darkMode ? '#7f1d1d' : '#fecaca'),
+              }]}>
+                <View style={[sm.lockBannerIcon, {
+                  backgroundColor: editingEnabled
+                    ? (darkMode ? '#14532d' : '#dcfce7')
+                    : (darkMode ? '#7f1d1d' : '#fee2e2'),
+                }]}>
+                  <Ionicons
+                    name={editingEnabled ? 'lock-open' : 'lock-closed'}
+                    size={16}
+                    color={editingEnabled ? (darkMode ? '#4ade80' : '#16a34a') : (darkMode ? '#f87171' : '#dc2626')}
+                  />
+                </View>
+                <View style={{flex:1}}>
+                  <Text style={[sm.lockBannerTitle, {color: editingEnabled ? (darkMode ? '#86efac' : '#15803d') : (darkMode ? '#fca5a5' : '#dc2626')}]}>
+                    {editingEnabled ? 'Editovanie je aktívne' : 'Editovanie je zamknuté'}
+                  </Text>
+                  <Text style={[sm.lockBannerSub, {color: editingEnabled ? (darkMode ? '#4ade80' : '#16a34a') : (darkMode ? '#f87171' : '#ef4444')}]}>
+                    {editingEnabled ? 'Môžeš upravovať checklisty a tabuľky' : 'Zadaj heslo na odomknutie úprav'}
+                  </Text>
+                </View>
               </View>
 
               {!editingEnabled ? (
-                <>
-                  {/* Password field */}
-                  <View style={[sm.passwordRow, {backgroundColor: T.inputBg, borderColor: T.border}]}>
-                    <Ionicons name="key-outline" size={17} color={T.placeholder} style={{marginRight: 10}} />
-                    <TextInput
-                      style={[sm.passwordInput, {color: T.inputText}]}
-                      placeholder="Heslo pre editovanie"
-                      placeholderTextColor={T.placeholder}
-                      secureTextEntry={!showPassword}
-                      value={password}
-                      onChangeText={setPassword}
-                      onSubmitEditing={unlockEditing}
-                      returnKeyType="done"
-                    />
-                    <TouchableOpacity onPress={() => setShowPassword(p => !p)} activeOpacity={0.7}>
-                      <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={17} color={T.placeholder} />
+                <View style={{paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16}}>
+                  {!showPinModal ? (
+                    <TouchableOpacity
+                      style={[sm.unlockBtn, {backgroundColor: ACCENT}]}
+                      onPress={() => { setPinInput(''); setPinError(false); setShowPinModal(true); }}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="keypad-outline" size={17} color="#111" style={{marginRight: 9}} />
+                      <Text style={[sm.unlockBtnTxt, {color: '#111'}]}>Zadať PIN</Text>
                     </TouchableOpacity>
-                  </View>
-                  <TouchableOpacity style={[sm.actionBtn, {backgroundColor: ACCENT}]} onPress={unlockEditing} activeOpacity={0.85}>
-                    <Ionicons name="lock-open-outline" size={17} color="#111" style={{marginRight: 8}} />
-                    <Text style={[sm.actionBtnTxt, {color: '#111'}]}>Odomknúť editovanie</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <TouchableOpacity style={[sm.actionBtn, {backgroundColor: DANGER}]} onPress={() => setEditingEnabled(false)} activeOpacity={0.85}>
-                  <Ionicons name="lock-closed-outline" size={17} color="#fff" style={{marginRight: 8}} />
-                  <Text style={[sm.actionBtnTxt, {color: '#fff'}]}>Zamknúť editovanie</Text>
-                </TouchableOpacity>
-              )}
-            </View>
+                  ) : (
+                    <View style={{alignItems:'center'}}>
+                      <Text style={[pin.title, {color: T.text, fontSize: 17, marginBottom: 4}]}>Zadaj PIN</Text>
+                      <Text style={[pin.sub, {color: T.subText, fontSize: 12, marginBottom: 20}]}>4-ciferný PIN pre editovanie</Text>
 
-            {/* ─── NOTIFIKÁCIE ─── */}
-            <Text style={[sm.sectionLabel, {color: T.subText}]}>NOTIFIKÁCIE</Text>
+                      {/* Dots */}
+                      <View style={pin.dotsRow}>
+                        {[0,1,2,3].map(i => (
+                          <View key={i} style={[
+                            pin.dot,
+                            {backgroundColor: pinError ? DANGER : (pinInput.length > i ? ACCENT : (darkMode ? '#334155' : '#e2e8f0'))},
+                          ]} />
+                        ))}
+                      </View>
+                      {pinError && <Text style={pin.errorTxt}>Nesprávny PIN</Text>}
 
-            {/* Prepínače pre každú sekciu */}
-            <View style={[sm.card, {backgroundColor: T.card, borderColor: T.border}]}>
-              {[
-                { key: 'morningPrep',    icon: 'sunny-outline',        color: '#f59e0b', label: 'Ranná zmena — príprava',  sub: 'Upozornenie na začiatku rannej zmeny' },
-                { key: 'morningTable',   icon: 'bar-chart-outline',    color: '#3b82f6', label: 'Ranná zmena — tabuľka',   sub: 'Upozornenie 16 min po každej hodine' },
-                { key: 'afternoonPrep',  icon: 'partly-sunny-outline', color: '#f59e0b', label: 'Obedná zmena — príprava', sub: 'Upozornenie na začiatku obednej zmeny' },
-                { key: 'afternoonTable', icon: 'stats-chart-outline',  color: '#3b82f6', label: 'Obedná zmena — tabuľka',  sub: 'Upozornenie 16 min po každej hodine' },
-              ].map(({ key, icon, color, label, sub }, idx, arr) => (
-                <React.Fragment key={key}>
-                  <View style={[sm.row, {paddingVertical: 14, alignItems: 'center'}]}>
-                    <View style={[sm.rowLeft, {flex: 1, marginRight: 8}]}>
-                      <View style={[sm.iconBox, {backgroundColor: notifPrefs[key] ? (darkMode ? '#1a2e1a' : '#f0fdf4') : T.sectionIconBg}]}>
-                        <Ionicons name={icon} size={16} color={notifPrefs[key] ? '#22c55e' : T.sectionIcon} />
+                      {/* Numpad */}
+                      <View style={pin.numpad}>
+                        {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((key, idx) => {
+                          if (key === '') return <View key={idx} style={pin.numKeyEmpty} />;
+                          const isBack = key === '⌫';
+                          return (
+                            <TouchableOpacity
+                              key={idx}
+                              style={[pin.numKey, {backgroundColor: isBack ? 'transparent' : (darkMode ? '#1e293b' : '#f1f5f9')}]}
+                              onPress={() => isBack ? handlePinBack() : handlePinPress(key)}
+                              activeOpacity={0.6}
+                            >
+                              {isBack
+                                ? <Ionicons name="backspace-outline" size={22} color={T.text} />
+                                : <Text style={[pin.numKeyTxt, {color: T.text}]}>{key}</Text>
+                              }
+                            </TouchableOpacity>
+                          );
+                        })}
                       </View>
-                      <View style={{flex: 1}}>
-                        <Text style={[sm.rowLabel, {color: T.text, fontSize: 14}]}>{label}</Text>
-                        <Text style={{fontSize: 11, color: T.subText, marginTop: 2}}>{sub}</Text>
-                      </View>
+
+                      <TouchableOpacity
+                        onPress={() => { setShowPinModal(false); setPinInput(''); setPinError(false); }}
+                        style={{marginTop: 14}}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={{color: T.subText, fontSize: 13, fontWeight: '600'}}>Zrušiť</Text>
+                      </TouchableOpacity>
                     </View>
-                    <Switch
-                      value={notifPrefs[key]}
-                      onValueChange={(v) => {
-                        const next = {...notifPrefs, [key]: v};
-                        setNotifPrefs(next);
-                        setTimeout(() => scheduleAllNotifications(), 400);
-                      }}
-                      trackColor={{false: '#cbd5e1', true: '#22c55e'}}
-                      thumbColor="#fff"
-                    />
-                  </View>
-                  {idx < arr.length - 1 && <View style={{height: 1, backgroundColor: T.border, marginHorizontal: 16}} />}
-                </React.Fragment>
-              ))}
-            </View>
-
-            {/* Akcie a test */}
-            <View style={[sm.card, {backgroundColor: T.card, borderColor: T.border}]}>
-              <TouchableOpacity
-                style={[sm.actionBtn, {backgroundColor: darkMode ? '#111e34' : '#f1f5f9', borderWidth: 1, borderColor: T.border}]}
-                onPress={async () => {
-                  if (Platform.OS === 'web') {
-                    Alert.alert('Info','Notifikácie sú dostupné len na mobilných zariadeniach.');
-                    return;
-                  }
-                  await scheduleAllNotifications();
-                  Alert.alert('Hotovo','Notifikácie boli znovu naplánované.');
-                }}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="notifications-outline" size={17} color={T.text} style={{marginRight: 8}} />
-                <Text style={[sm.actionBtnTxt, {color: T.text}]}>Znovu naplánovať notifikácie</Text>
-              </TouchableOpacity>
-
-              <View style={{height: 1, backgroundColor: T.border, marginHorizontal: 16, marginBottom: 12}} />
-              <View style={[sm.infoBox, {backgroundColor: darkMode ? '#1a1200' : '#fffbeb', borderColor: darkMode ? '#78350f' : '#fcd34d', borderWidth: 1, marginBottom: 4}]}>
-                <Ionicons name="flask-outline" size={15} color={darkMode ? '#fbbf24' : '#92400e'} style={{marginRight: 8, marginTop: 1}} />
-                <Text style={[sm.infoText, {color: darkMode ? '#fbbf24' : '#92400e'}]}>
-                  Testovací režim: notifikácie prídu za 10 s a 20 s.{'\n'}
-                  Zamkni telefón alebo minimalizuj appku pred stlačením.
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={[sm.actionBtn, {backgroundColor: '#fbbf24'}]}
-                onPress={sendTestNotifications}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="flask-outline" size={17} color="#111" style={{marginRight: 8}} />
-                <Text style={[sm.actionBtnTxt, {color: '#111'}]}>Otestovať notifikácie (10 s / 20 s)</Text>
-              </TouchableOpacity>
+                  )}
+                </View>
+              ) : (
+                <View style={{padding: 16, paddingTop: 14}}>
+                  <TouchableOpacity style={[sm.unlockBtn, {backgroundColor: DANGER}]} onPress={() => setEditingEnabled(false)} activeOpacity={0.85}>
+                    <Ionicons name="lock-closed-outline" size={17} color="#fff" style={{marginRight: 9}} />
+                    <Text style={[sm.unlockBtnTxt, {color: '#fff'}]}>Zamknúť editovanie</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
 
             {/* ─── HESLO ─── */}
-            <Text style={[sm.sectionLabel, {color: T.subText}]}>HESLO</Text>
+            <View style={sm.sectionLabelRow}>
+              <Ionicons name="key-outline" size={12} color={T.subText} style={{marginRight: 5}} />
+              <Text style={[sm.sectionLabel, {color: T.subText}]}>HESLO</Text>
+            </View>
             <View style={[sm.card, {backgroundColor: T.card, borderColor: T.border}]}>
               {!showChangePw ? (
                 <TouchableOpacity
-                  style={[sm.actionBtn, {backgroundColor: darkMode ? '#111e34' : '#f1f5f9', borderWidth: 1, borderColor: T.border}]}
+                  style={[sm.ghostBtn, {borderColor: T.border}]}
                   onPress={() => setShowChangePw(true)}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="key-outline" size={17} color={T.text} style={{marginRight: 8}} />
-                  <Text style={[sm.actionBtnTxt, {color: T.text}]}>Zmeniť heslo</Text>
+                  <View style={[sm.iconBox, {backgroundColor: darkMode ? '#1a0a00' : '#fff7ed', marginRight: 12}]}>
+                    <Ionicons name="key-outline" size={17} color="#f97316" />
+                  </View>
+                  <Text style={[sm.ghostBtnTxt, {color: T.text}]}>Zmeniť heslo</Text>
+                  <Ionicons name="chevron-forward" size={16} color={T.subText} style={{marginLeft: 'auto'}} />
                 </TouchableOpacity>
               ) : (
-                <>
+                <View style={{padding: 16}}>
                   {[
-                    { label: 'Aktuálne heslo', value: cpCurrent, setter: setCpCurrent, show: showCpCurrent, toggleShow: () => setShowCpCurrent(p => !p) },
-                    { label: 'Nové heslo',      value: cpNew,     setter: setCpNew,     show: showCpNew,     toggleShow: () => setShowCpNew(p => !p) },
-                    { label: 'Potvrď heslo',    value: cpConfirm, setter: setCpConfirm, show: showCpConfirm, toggleShow: () => setShowCpConfirm(p => !p) },
-                  ].map(({ label, value, setter, show, toggleShow }) => (
-                    <View key={label} style={[sm.passwordRow, {backgroundColor: T.inputBg, borderColor: T.border, marginBottom: 8}]}>
-                      <Ionicons name="key-outline" size={17} color={T.placeholder} style={{marginRight: 10}} />
-                      <TextInput
-                        style={[sm.passwordInput, {color: T.inputText}]}
-                        placeholder={label}
-                        placeholderTextColor={T.placeholder}
-                        secureTextEntry={!show}
-                        value={value}
-                        onChangeText={setter}
-                        returnKeyType="done"
-                      />
-                      <TouchableOpacity onPress={toggleShow} activeOpacity={0.7}>
-                        <Ionicons name={show ? 'eye-off-outline' : 'eye-outline'} size={17} color={T.placeholder} />
-                      </TouchableOpacity>
+                    { label: 'Aktuálne heslo', value: cpCurrent, setter: setCpCurrent, show: showCpCurrent, toggleShow: () => setShowCpCurrent(p => !p), step: '1' },
+                    { label: 'Nové heslo',      value: cpNew,     setter: setCpNew,     show: showCpNew,     toggleShow: () => setShowCpNew(p => !p),     step: '2' },
+                    { label: 'Potvrď heslo',    value: cpConfirm, setter: setCpConfirm, show: showCpConfirm, toggleShow: () => setShowCpConfirm(p => !p), step: '3' },
+                  ].map(({ label, value, setter, show, toggleShow, step }) => (
+                    <View key={label} style={{marginBottom: 10}}>
+                      <View style={sm.pwLabelRow}>
+                        <View style={sm.pwStep}><Text style={sm.pwStepTxt}>{step}</Text></View>
+                        <Text style={[sm.pwFieldLabel, {color: T.subText}]}>{label}</Text>
+                      </View>
+                      <View style={[sm.passwordRow, {backgroundColor: T.inputBg, borderColor: T.border, marginBottom: 0}]}>
+                        <View style={[sm.inputIconWrap, {backgroundColor: darkMode ? '#1e293b' : '#f1f5f9'}]}>
+                          <Ionicons name="key-outline" size={15} color={T.placeholder} />
+                        </View>
+                        <TextInput
+                          style={[sm.passwordInput, {color: T.inputText}]}
+                          placeholder={label}
+                          placeholderTextColor={T.placeholder}
+                          secureTextEntry={!show}
+                          value={value}
+                          onChangeText={setter}
+                          returnKeyType="done"
+                        />
+                        <TouchableOpacity onPress={toggleShow} activeOpacity={0.7} style={sm.eyeBtn}>
+                          <Ionicons name={show ? 'eye-off-outline' : 'eye-outline'} size={17} color={T.placeholder} />
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   ))}
-                  <View style={{flexDirection:'row', gap: 8}}>
+                  <View style={{flexDirection:'row', gap: 8, marginTop: 6}}>
                     <TouchableOpacity
-                      style={[sm.actionBtn, {flex:1, backgroundColor: darkMode ? '#111e34' : '#f1f5f9', borderWidth: 1, borderColor: T.border}]}
+                      style={[sm.ghostBtn, {flex:1, borderColor: T.border, paddingVertical: 13}]}
                       onPress={() => { setShowChangePw(false); setCpCurrent(''); setCpNew(''); setCpConfirm(''); }}
                       activeOpacity={0.8}
                     >
-                      <Text style={[sm.actionBtnTxt, {color: T.text}]}>Zrušiť</Text>
+                      <Text style={[sm.ghostBtnTxt, {color: T.text}]}>Zrušiť</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={[sm.actionBtn, {flex:1, backgroundColor: ACCENT}]}
+                      style={[sm.primaryBtn, {flex:1, margin: 0, backgroundColor: ACCENT}]}
                       onPress={changePassword}
                       activeOpacity={0.85}
                     >
-                      <Ionicons name="checkmark-outline" size={17} color="#111" style={{marginRight: 6}} />
-                      <Text style={[sm.actionBtnTxt, {color: '#111'}]}>Uložiť</Text>
+                      <Ionicons name="checkmark-outline" size={16} color="#111" style={{marginRight: 6}} />
+                      <Text style={[sm.primaryBtnTxt, {color: '#111'}]}>Uložiť</Text>
                     </TouchableOpacity>
                   </View>
-                </>
+                </View>
               )}
             </View>
+
+            {/* ─── NOTIFIKÁCIE (viditeľné len po odomknutí) ─── */}
+            {editingEnabled && (
+              <>
+                <View style={sm.sectionLabelRow}>
+                  <Ionicons name="notifications-outline" size={12} color={T.subText} style={{marginRight: 5}} />
+                  <Text style={[sm.sectionLabel, {color: T.subText}]}>NOTIFIKÁCIE</Text>
+                </View>
+
+                <View style={[sm.card, {backgroundColor: T.card, borderColor: T.border}]}>
+                  {[
+                    { key: 'morningPrep',    icon: 'sunny',        iconBg: darkMode ? '#2d1800' : '#fffbeb', iconColor: '#f59e0b', label: 'Ranná zmena — príprava',  sub: 'Upozornenie na začiatku rannej zmeny' },
+                    { key: 'morningTable',   icon: 'bar-chart',    iconBg: darkMode ? '#0c1a2e' : '#eff6ff', iconColor: '#3b82f6', label: 'Ranná zmena — tabuľka',   sub: 'Upozornenie 16 min po každej hodine' },
+                    { key: 'afternoonPrep',  icon: 'partly-sunny', iconBg: darkMode ? '#2d1800' : '#fffbeb', iconColor: '#f59e0b', label: 'Obedná zmena — príprava', sub: 'Upozornenie na začiatku obednej zmeny' },
+                    { key: 'afternoonTable', icon: 'stats-chart',  iconBg: darkMode ? '#0c1a2e' : '#eff6ff', iconColor: '#3b82f6', label: 'Obedná zmena — tabuľka',  sub: 'Upozornenie 16 min po každej hodine' },
+                  ].map(({ key, icon, iconBg, iconColor, label, sub }, idx, arr) => (
+                    <React.Fragment key={key}>
+                      <View style={[sm.row, {paddingVertical: 14}]}>
+                        <View style={[sm.rowLeft, {flex: 1, marginRight: 8}]}>
+                          <View style={[sm.iconBox, {backgroundColor: notifPrefs[key] ? iconBg : T.sectionIconBg}]}>
+                            <Ionicons name={icon} size={17} color={notifPrefs[key] ? iconColor : T.sectionIcon} />
+                          </View>
+                          <View style={{flex: 1}}>
+                            <Text style={[sm.rowLabel, {color: T.text, fontSize: 14}]}>{label}</Text>
+                            <Text style={[sm.rowSub, {color: T.subText}]}>{sub}</Text>
+                          </View>
+                        </View>
+                        <Switch
+                          value={notifPrefs[key]}
+                          onValueChange={(v) => {
+                            const next = {...notifPrefs, [key]: v};
+                            setNotifPrefs(next);
+                            setTimeout(() => scheduleAllNotifications(), 400);
+                          }}
+                          trackColor={{false: '#cbd5e1', true: '#22c55e'}}
+                          thumbColor="#fff"
+                        />
+                      </View>
+                      {idx < arr.length - 1 && <View style={[sm.divider, {backgroundColor: T.border}]} />}
+                    </React.Fragment>
+                  ))}
+                </View>
+
+                <View style={[sm.card, {backgroundColor: T.card, borderColor: T.border}]}>
+                  <TouchableOpacity
+                    style={[sm.ghostBtn, {borderColor: T.border}]}
+                    onPress={async () => {
+                      if (Platform.OS === 'web') {
+                        Alert.alert('Info','Notifikácie sú dostupné len na mobilných zariadeniach.');
+                        return;
+                      }
+                      await scheduleAllNotifications();
+                      Alert.alert('Hotovo','Notifikácie boli znovu naplánované.');
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="refresh-outline" size={16} color={T.text} style={{marginRight: 8}} />
+                    <Text style={[sm.ghostBtnTxt, {color: T.text}]}>Znovu naplánovať notifikácie</Text>
+                  </TouchableOpacity>
+
+                  <View style={[sm.divider, {backgroundColor: T.border, marginHorizontal: 0}]} />
+
+                  <View style={[sm.infoBox, {backgroundColor: darkMode ? '#1a1200' : '#fffbeb', borderColor: darkMode ? '#78350f' : '#fcd34d'}]}>
+                    <Ionicons name="flask-outline" size={14} color={darkMode ? '#fbbf24' : '#92400e'} style={{marginRight: 8, marginTop: 1}} />
+                    <Text style={[sm.infoText, {color: darkMode ? '#fbbf24' : '#92400e'}]}>
+                      {'Testovací režim: notifikácie prídu za 10 s a 20 s.\nZamkni telefón alebo minimalizuj appku pred stlačením.'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[sm.primaryBtn, {backgroundColor: '#fbbf24', marginTop: 0}]}
+                    onPress={sendTestNotifications}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="flask-outline" size={16} color="#111" style={{marginRight: 8}} />
+                    <Text style={[sm.primaryBtnTxt, {color: '#111'}]}>Otestovať notifikácie (10 s / 20 s)</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
 
             <View style={{height: 40}} />
           </ScrollView>
         </View>
       </Modal>
+
+      {/* ── HANDOVER POPUP ─────────────────────────────────────────────────── */}
+      <Modal
+        visible={showHandoverPopup}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowHandoverPopup(false)}
+      >
+        <View style={hdl.overlay}>
+          <View style={[hdl.sheet, {backgroundColor: T.card}]}>
+            <View style={[hdl.iconWrap, {backgroundColor: darkMode ? '#0c1a2e' : '#eff6ff'}]}>
+              <Ionicons name="mail-unread" size={28} color="#3b82f6" />
+            </View>
+            <Text style={[hdl.title, {color: T.text}]}>
+              {handoverPopupMsgs.length > 1 ? `Odkazy od predchádzajúcej zmeny (${handoverPopupMsgs.length})` : 'Odkaz od predchádzajúcej zmeny'}
+            </Text>
+            <View style={[hdl.msgBox, {backgroundColor: darkMode ? '#0a1120' : '#f8fafc', borderColor: T.border}]}>
+              {handoverPopupMsgs.map((m, idx) => (
+                <View key={idx} style={idx > 0 ? {marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: T.border} : {}}>
+                  <View style={{flexDirection:'row', alignItems:'center', marginBottom: 3}}>
+                    <Text style={{fontSize:12, fontWeight:'700', color: ACCENT}}>#{idx + 1}</Text>
+                    {m.time ? <Text style={{fontSize:11, color: T.subText, marginLeft: 6}}>{m.time}</Text> : null}
+                    <TouchableOpacity
+                      onPress={() => deleteHandoverMsg(idx)}
+                      activeOpacity={0.7}
+                      style={{marginLeft:'auto', padding: 4}}
+                    >
+                      <Ionicons name="trash-outline" size={16} color={darkMode ? '#f87171' : '#ef4444'} />
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={[hdl.msgTxt, {color: T.text}]}>{m.text}</Text>
+                </View>
+              ))}
+            </View>
+            <TouchableOpacity
+              style={[hdl.btn, {backgroundColor: ACCENT}]}
+              onPress={() => setShowHandoverPopup(false)}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="checkmark-outline" size={18} color="#111" style={{marginRight: 8}} />
+              <Text style={[hdl.btnTxt, {color: '#111'}]}>Rozumiem</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
 
     </SafeAreaView>
   );
@@ -1312,6 +1576,11 @@ const s = StyleSheet.create({
   prodValue:       {fontSize:15, fontWeight:'800'},
   prodDivider:     {height:1},
   notesBox:        {borderRadius:16, borderWidth:1.5, padding:14, marginBottom:22, ...SHADOW},
+  handoverBox:     {borderRadius:16, borderWidth:1.5, paddingTop:14, paddingHorizontal:14, marginBottom:22, ...SHADOW},
+  handoverDivider: {height:1, marginHorizontal:-14, marginTop:12},
+  handoverBtn:     {flexDirection:'row', alignItems:'center', justifyContent:'center',
+                    paddingVertical:13, marginHorizontal:-14, borderBottomLeftRadius:14, borderBottomRightRadius:14, marginTop:0},
+  handoverBtnTxt:  {fontSize:14, fontWeight:'700'},
   notesInput:      {minHeight:130, textAlignVertical:'top', fontSize:15, fontWeight:'500', lineHeight:22},
   resetBtn:        {flexDirection:'row', alignItems:'center', justifyContent:'center', backgroundColor:DANGER, paddingVertical:15, borderRadius:14, marginTop:8, marginBottom:32,
     ...Platform.select({ios:{shadowColor:DANGER,shadowOffset:{width:0,height:4},shadowOpacity:0.35,shadowRadius:10},android:{elevation:5}})},
@@ -1343,24 +1612,72 @@ const sm = StyleSheet.create({
   header:       {flexDirection:'row', justifyContent:'space-between', alignItems:'center',
                   paddingHorizontal:20, paddingTop: Platform.OS === 'ios' ? 20 : 36,
                   paddingBottom:16, borderBottomWidth:1},
+  headerLeft:   {flexDirection:'row', alignItems:'center', gap:10},
+  headerIconWrap:{width:32, height:32, borderRadius:10, backgroundColor: ACCENT, alignItems:'center', justifyContent:'center'},
   title:        {fontSize:20, fontWeight:'800', letterSpacing:-0.4},
   closeBtn:     {width:34, height:34, borderRadius:17, borderWidth:1, alignItems:'center', justifyContent:'center'},
-  scroll:       {flex:1, paddingHorizontal:20, paddingTop:24},
-  sectionLabel: {fontSize:11, fontWeight:'800', letterSpacing:1.4, marginBottom:10, marginLeft:2},
-  card:         {borderRadius:16, borderWidth:1, marginBottom:28, overflow:'hidden', ...SHADOW_MD},
-  row:          {flexDirection:'row', justifyContent:'space-between', alignItems:'center', padding:16},
+  scroll:       {flex:1, paddingHorizontal:20, paddingTop:20},
+  sectionLabelRow:{flexDirection:'row', alignItems:'center', marginBottom:8, marginTop:20, marginLeft:2},
+  sectionLabel: {fontSize:11, fontWeight:'800', letterSpacing:1.6},
+  card:         {borderRadius:16, borderWidth:1, marginBottom:6, overflow:'hidden', ...SHADOW_MD},
+  row:          {flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:16, paddingVertical:14},
   rowLeft:      {flexDirection:'row', alignItems:'center', gap:12},
-  iconBox:      {width:32, height:32, borderRadius:9, alignItems:'center', justifyContent:'center'},
-  rowLabel:     {fontSize:16, fontWeight:'600'},
-  badge:        {flexDirection:'row', alignItems:'center', gap:7, margin:16, marginBottom:14,
-                  padding:11, borderRadius:11, borderWidth:1},
-  badgeText:    {fontSize:13, fontWeight:'700'},
+  rowTextBlock: {flexDirection:'column', gap:2},
+  rowLabel:     {fontSize:15, fontWeight:'600'},
+  rowSub:       {fontSize:12, fontWeight:'400', marginTop:1},
+  iconBox:      {width:36, height:36, borderRadius:10, alignItems:'center', justifyContent:'center'},
+  divider:      {height:1, marginHorizontal:16},
+  inputIconWrap:{width:28, height:28, borderRadius:8, alignItems:'center', justifyContent:'center', marginRight:10},
   passwordRow:  {flexDirection:'row', alignItems:'center', marginHorizontal:16, marginBottom:12,
-                  padding:13, borderRadius:12, borderWidth:1.5},
+                  padding:12, borderRadius:12, borderWidth:1.5},
   passwordInput:{flex:1, fontSize:15, fontWeight:'500'},
-  actionBtn:    {flexDirection:'row', alignItems:'center', justifyContent:'center',
-                  margin:16, marginTop:0, padding:14, borderRadius:12},
-  actionBtnTxt: {fontWeight:'700', fontSize:15},
-  infoBox:      {flexDirection:'row', margin:16, marginBottom:12, padding:13, borderRadius:12},
+  eyeBtn:       {padding:4},
+  primaryBtn:   {flexDirection:'row', alignItems:'center', justifyContent:'center',
+                  margin:16, marginTop:12, padding:14, borderRadius:12,
+                  ...Platform.select({ios:{shadowColor:'#000',shadowOffset:{width:0,height:3},shadowOpacity:0.15,shadowRadius:8},android:{elevation:4}})},
+  primaryBtnTxt:{fontWeight:'700', fontSize:15},
+  ghostBtn:     {flexDirection:'row', alignItems:'center', padding:16, borderRadius:0},
+  ghostBtnTxt:  {fontWeight:'600', fontSize:15},
+  infoBox:      {flexDirection:'row', margin:16, marginBottom:12, padding:13, borderRadius:12, borderWidth:1},
   infoText:     {flex:1, fontSize:12, lineHeight:19, fontWeight:'500'},
+  pwLabelRow:   {flexDirection:'row', alignItems:'center', gap:8, marginBottom:6},
+  pwStep:       {width:20, height:20, borderRadius:10, backgroundColor:ACCENT, alignItems:'center', justifyContent:'center'},
+  pwStepTxt:    {fontSize:11, fontWeight:'800', color:'#111'},
+  pwFieldLabel: {fontSize:12, fontWeight:'600', letterSpacing:0.3},
+  lockBanner:   {flexDirection:'row', alignItems:'center', gap:14, paddingHorizontal:16,
+                  paddingVertical:14, borderBottomWidth:1},
+  lockBannerIcon:{width:38, height:38, borderRadius:12, alignItems:'center', justifyContent:'center'},
+  lockBannerTitle:{fontSize:15, fontWeight:'700', marginBottom:2},
+  lockBannerSub: {fontSize:12, fontWeight:'400'},
+  unlockBtn:    {flexDirection:'row', alignItems:'center', justifyContent:'center',
+                  paddingVertical:14, borderRadius:13,
+                  ...Platform.select({ios:{shadowColor:'#000',shadowOffset:{width:0,height:3},shadowOpacity:0.15,shadowRadius:8},android:{elevation:4}})},
+  unlockBtnTxt: {fontWeight:'800', fontSize:16},
+});
+
+
+const hdl = StyleSheet.create({
+  overlay:  {flex:1, backgroundColor:'rgba(0,0,0,0.6)', justifyContent:'center', alignItems:'center', padding:24},
+  sheet:    {width:'100%', maxWidth:340, borderRadius:28, padding:24, alignItems:'center',
+              ...Platform.select({ios:{shadowColor:'#000',shadowOffset:{width:0,height:12},shadowOpacity:0.25,shadowRadius:24},android:{elevation:16}})},
+  iconWrap: {width:64, height:64, borderRadius:20, alignItems:'center', justifyContent:'center', marginBottom:14, marginTop:4},
+  title:    {fontSize:17, fontWeight:'800', letterSpacing:-0.3, marginBottom:16, textAlign:'center'},
+  msgBox:   {width:'100%', borderRadius:14, borderWidth:1, padding:16, marginBottom:20},
+  msgTxt:   {fontSize:15, fontWeight:'500', lineHeight:22},
+  btn:      {flexDirection:'row', alignItems:'center', justifyContent:'center', width:'100%',
+              paddingVertical:14, borderRadius:14,
+              ...Platform.select({ios:{shadowColor:'#000',shadowOffset:{width:0,height:3},shadowOpacity:0.15,shadowRadius:8},android:{elevation:4}})},
+  btnTxt:   {fontSize:16, fontWeight:'800'},
+});
+
+const pin = StyleSheet.create({
+  title:      {fontSize:22, fontWeight:'800', letterSpacing:-0.4, marginBottom:4},
+  sub:        {fontSize:13, fontWeight:'500', marginBottom:28},
+  dotsRow:    {flexDirection:'row', gap:14, marginBottom:8},
+  dot:        {width:16, height:16, borderRadius:8},
+  errorTxt:   {color:DANGER, fontSize:13, fontWeight:'700', marginBottom:4, marginTop:4},
+  numpad:     {flexDirection:'row', flexWrap:'wrap', width:240, marginTop:20, gap:12},
+  numKey:     {width:68, height:68, borderRadius:18, alignItems:'center', justifyContent:'center'},
+  numKeyEmpty:{width:68, height:68},
+  numKeyTxt:  {fontSize:26, fontWeight:'600'},
 });
