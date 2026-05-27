@@ -20,7 +20,10 @@
       "package": "com.mcdesc.preshift",
 
       "permissions": [
-        "NOTIFICATIONS"
+        "NOTIFICATIONS",
+        "SCHEDULE_EXACT_ALARM",
+        "USE_EXACT_ALARM",
+        "RECEIVE_BOOT_COMPLETED"
       ],
 
       "adaptiveIcon": {
@@ -32,7 +35,12 @@
     },
 
     "plugins": [
-      "expo-notifications"
+      [
+        "expo-notifications",
+        {
+          "sounds": []
+        }
+      ]
     ],
 
     "extra": {
