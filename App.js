@@ -376,15 +376,15 @@ export default function ShiftChecklistScreen() {
         return s > 0 ? s : null;
       };
 
-      // Build a one-shot trigger using TIME_INTERVAL (seconds from now).
-      // This is the same mechanism used by the test notification which is
-      // confirmed to fire correctly in the background and on the lock screen.
-      // The DATE trigger has known issues on some Android versions where it
-      // silently fails to fire when the app is closed or backgrounded.
+      // Build a one-shot trigger using DATE so Android registers it via
+      // AlarmManager.setExactAndAllowWhileIdle(). This fires reliably even
+      // when the app is killed, the screen is locked, or the device is in
+      // Doze mode. TIME_INTERVAL uses a JavaScript-level timer which the OS
+      // destroys when the app process is killed -- that is why notifications
+      // were silently missed when the phone was locked or the app was closed.
       const makeTrigger = (fireAt) => ({
-        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-        seconds: Math.max(1, Math.round((fireAt.getTime() - now.getTime()) / 1000)),
-        repeats: false,
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: fireAt,
         channelId: 'default',
       });
 
