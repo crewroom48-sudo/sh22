@@ -53,56 +53,59 @@ const KEYS = {
   duringChecks:     'shift_during_checks',
   afterChecks:      'shift_after_checks',
   walkChecks:       'shift_walk_checks',
+  morning_notes:    'morning_notes',
+  afternoon_notes:  'afternoon_notes',
   password:         'shift_custom_password',
 };
 
 // ─── Default checklist content ────────────────────────────────────────────────
 const DEFAULT_MORNING_BEFORE = [
-  'Prebraté shift kľúče a mngr trezor?',
-  'Ľudia na zmenu naplánovaní?',
-  'Ciele zmeny nadefinované?',
-  'BTO tabuľky vyplnené?',
+  'Ľudia na zmenu naplánované a príslušní vedúci informovaný?',
+  'Skontrolované doby spotreby? (Kuchyňa, servis,cafe)',
+  'Ciele zmeny nadefinované a komunikované ?',
+  'BTO tabuľky navážania vyplnené?',
   'Kontrola deaktivovaných produktov?',
-  'FIFO a FSA',
-  'Funkčné zariadenia',
-  'Uniformy zamestnancov',
+  'Loby je čiste ? (parapety, paravany a stanice)',
+  'E-production nastavená ?',
+  'FIFO a FSA. (sklady zodpovedajú štandardu)',
+  'Zariadenia sú funkčné?',
+  'Uniformy zamestnancov (Zamestnanci sú upravený)',
 ];
 const DEFAULT_MORNING_DURING = [
   'Kontrola raňajok (Prechod)',
-  'Kuchyňa aj servis navozené?',
+  'Kuchyňa aj servis navozené? (Pred špičkou)',
   'HACCP kontroly vykonané?',
 ];
 const DEFAULT_MORNING_AFTER = [
+  'Podstatné informácie predané ďalšiemu shiftovy',
   'Ciele vyhodnotené a komunikované s vedúcimi zón?',
-  'Vyvozené príručné mrazničky',
   'Tabuľka vyhodnotenie zmeny vyplnená?',
-  'Vyčistený kávovar',
+  'Depozit a odvod spravený ?',
   'Tréning + verifikácie v tabuľke vyhodnotené?',
   'Kancelária je čistá, poriadená?',
 ];
 const DEFAULT_AFTERNOON_BEFORE = [
-  'Ľudia na zmenu naplánovaní?',
-  'Skontrolované doby spotreby?',
-  'Ciele zmeny nadefinované?',
-  'BTO tabuľky vyplnené?',
+  'Ľudia na zmenu naplánované a príslušní vedúci informovaný?',
+  'Skontrolované doby spotreby? (Kuchyňa, servis,cafe)',
+  'Ciele zmeny nadefinované a komunikované ?',
+  'BTO tabuľky navážania vyplnené?',
   'Kontrola deaktivovaných produktov?',
-  'Lobby je čisté?',
-  'e-production nastavená?',
-  'FIFO a FSA',
-  'Funkčné zariadenia',
-  'Uniformy zamestnancov',
+  'Prebraté shift kľúče aj trezor? (Podpísať v knižke)',
+  'E-production nastavená ?',
+  'FIFO a FSA. (sklady zodpovedajú štandardu)',
+  'Funkčné zariadenia ?',
+  'Uniformy zamestnancov (Zamestnanci sú upravený)',
 ];
 const DEFAULT_AFTERNOON_DURING = [
   'Hodinové vyhodnocovanie ukazovateľov',
-  'Kuchyňa aj servis navozené?',
+  'Kuchyňa aj servis navozené? (Pred špičkou)',
   'HACCP kontroly vykonané?',
 ];
 const DEFAULT_AFTERNOON_AFTER = [
-  'Podstatné informácie prichádzajúcemu shiftovi odovzdané?',
   'Ciele vyhodnotené a komunikované s vedúcimi zón?',
-  'Odpad nahodený?',
+  'Vyvozené priručné mrazničky?',
   'Tabuľka vyhodnotenie zmeny vyplnená?',
-  'Depozity a odvod spravený?',
+  'Kávovar vyčistení ? (Aj tesnenia)',
   'Tréning + verifikácie v tabuľke vyhodnotené?',
   'Kancelária je čistá, poriadená?',
 ];
@@ -124,7 +127,8 @@ export default function ShiftChecklistScreen() {
   const [shiftType,      setShiftType]      = useState('morning');
   const [name,           setName]           = useState('');
   const [hoursWorked,    setHoursWorked]    = useState('');
-  const [notes,          setNotes]          = useState('');
+  const [morningNotes,   setMorningNotes]   = useState('');
+  const [afternoonNotes, setAfternoonNotes] = useState('');
   const [darkMode,       setDarkMode]       = useState(false);
   const [showSettings,   setShowSettings]   = useState(false);
   const [password,       setPassword]       = useState('');
@@ -174,6 +178,8 @@ export default function ShiftChecklistScreen() {
   const setAfterList  = (v) => isMorning ? setMorningAfter(v)   : setAfternoonAfter(v);
   const setTableData  = (v) => isMorning ? setMorningTable(v)   : setAfternoonTable(v);
   const setWalkTimes  = (v) => isMorning ? setMorningWalk(v)    : setAfternoonWalk(v);
+  const notes         = isMorning ? morningNotes    : afternoonNotes;
+  const setNotes      = isMorning ? setMorningNotes : setAfternoonNotes;
 
   // ── Load on mount ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -197,7 +203,6 @@ export default function ShiftChecklistScreen() {
       const shared = await load(KEYS.shared, {});
       setName(shared.name || '');
       setHoursWorked(shared.hoursWorked || '');
-      setNotes(shared.notes || '');
       setDarkMode(shared.darkMode || false);
       setShiftType(shared.shiftType || 'morning');
 
@@ -222,6 +227,11 @@ export default function ShiftChecklistScreen() {
       const aw = await load(KEYS.afternoon_walk, null);
       if (aw && aw.length) setAfternoonWalk(aw);
 
+      const mn = await AsyncStorage.getItem(KEYS.morning_notes);
+      if (mn !== null) setMorningNotes(mn);
+      const an = await AsyncStorage.getItem(KEYS.afternoon_notes);
+      if (an !== null) setAfternoonNotes(an);
+
       const pw = await AsyncStorage.getItem(KEYS.password);
       if (pw) setCustomPassword(pw);
 
@@ -235,13 +245,21 @@ export default function ShiftChecklistScreen() {
     AsyncStorage.setItem(key, JSON.stringify(value)).catch(console.log);
   };
 
-  useEffect(() => { save(KEYS.shared, { name, hoursWorked, notes, darkMode, shiftType }); },
-    [name, hoursWorked, notes, darkMode, shiftType]);
+  useEffect(() => { save(KEYS.shared, { name, hoursWorked, darkMode, shiftType }); },
+    [name, hoursWorked, darkMode, shiftType]);
 
   useEffect(() => { save(KEYS.checks,       checks);       }, [checks]);
   useEffect(() => { save(KEYS.duringChecks, duringChecks); }, [duringChecks]);
   useEffect(() => { save(KEYS.afterChecks,  afterChecks);  }, [afterChecks]);
   useEffect(() => { save(KEYS.walkChecks,   walkChecks);   }, [walkChecks]);
+  useEffect(() => {
+    if (!isInitialized.current) return;
+    AsyncStorage.setItem(KEYS.morning_notes,   morningNotes).catch(console.log);
+  }, [morningNotes]);
+  useEffect(() => {
+    if (!isInitialized.current) return;
+    AsyncStorage.setItem(KEYS.afternoon_notes, afternoonNotes).catch(console.log);
+  }, [afternoonNotes]);
 
   useEffect(() => { save(KEYS.morning_before, morningBefore); }, [morningBefore]);
   useEffect(() => { save(KEYS.morning_during, morningDuring); }, [morningDuring]);
@@ -260,7 +278,8 @@ export default function ShiftChecklistScreen() {
     if (!isInitialized.current) return;
     if (Platform.OS !== 'web') scheduleAllNotifications();
   }, [name, checks, duringChecks, afterChecks, walkChecks, hoursWorked,
-      morningTable, afternoonTable, morningWalk, afternoonWalk, shiftType]);
+      morningTable, afternoonTable, morningWalk, afternoonWalk, shiftType,
+      morningBefore, afternoonBefore]);
 
   const scheduleAllNotifications = async () => {
     if (Platform.OS === 'web') return;
@@ -288,33 +307,30 @@ export default function ShiftChecklistScreen() {
         }
       }
 
-      // ── 2. Before-shift checklist reminders (BUG FIXED) ──────────────────
-      // Original: Object.values(checks).every(Boolean) — vacuously true when
-      // checks is empty {}, and includes ticks from the OTHER shift.
-      // Fix: check only keys for current shift prefix, and require length > 0.
-      const checklistComplete =
-        checklist.length > 0 &&
-        checklist.every((_, i) => !!checks[`${prefix}_before_${i}`]);
-
-      if (!checklistComplete) {
-        const morningSlots   = [[6,0],[6,30],[7,0],[7,30],[8,0],[8,30]];
-        const afternoonSlots = [[12,0],[12,30],[13,0],[13,30],[14,0],[14,30],[15,0]];
-        const slots = isMorning ? morningSlots : afternoonSlots;
-        const shiftEndMin = isMorning ? 8*60+30 : 15*60;
-        for (const [h, m] of slots) {
-          const fireAt = todayAt(h, m);
-          if (fireAt > now) {
-            const minsLeft = shiftEndMin - (h * 60 + m);
-            const timeStr = minsLeft === 0 ? 'teraz' : `o ${minsLeft} min`;
-            const shiftName = isMorning ? 'Ranná zmena' : 'Obedná zmena';
-            await Notifications.scheduleNotificationAsync({
-              content: {
-                title: `${shiftName} začína ${timeStr}`,
-                body: 'Checklist pred zmenou ešte nie je dokončený!',
-              },
-              trigger: { date: fireAt },
-            });
-          }
+      // ── 2. Before-shift checklist reminders — one per shift at first table hour ──
+      // For each shift, schedule a notification at the time of the first table row.
+      // If the prep checklist is already done, no notification is scheduled.
+      const shiftConfigs = [
+        { tableRows: morningTable,   beforeList: morningBefore,   shiftPfx: 'morning',   shiftName: 'Ranná zmena' },
+        { tableRows: afternoonTable, beforeList: afternoonBefore, shiftPfx: 'afternoon', shiftName: 'Obedná zmena' },
+      ];
+      for (const { tableRows, beforeList, shiftPfx, shiftName } of shiftConfigs) {
+        if (!tableRows.length) continue;
+        const firstHour = parseInt(tableRows[0].hour);
+        if (isNaN(firstHour)) continue;
+        const fireAt = todayAt(firstHour, 0);
+        if (fireAt <= now) continue;
+        const complete =
+          beforeList.length > 0 &&
+          beforeList.every((_, i) => !!checks[`${shiftPfx}_before_${i}`]);
+        if (!complete) {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: `${shiftName} začína!`,
+              body: 'Checklist pred zmenou ešte nie je dokončený!',
+            },
+            trigger: { date: fireAt },
+          });
         }
       }
     } catch (e) { console.log('Notification error:', e); }
@@ -424,7 +440,7 @@ export default function ShiftChecklistScreen() {
       clearPrefix(setDuringChecks);
       clearPrefix(setAfterChecks);
       clearPrefix(setWalkChecks);
-      setNotes('');
+      if (isMorning) setMorningNotes(''); else setAfternoonNotes('');
       setHoursWorked('');
       setTableData(nd);
       setWalkTimes(nd.map(r => `${r.hour}:00`));
@@ -781,8 +797,8 @@ export default function ShiftChecklistScreen() {
                 <Ionicons name="information-circle-outline" size={16} color={darkMode ? '#93c5fd' : '#3b82f6'} style={{marginRight: 8, marginTop: 1}} />
                 <Text style={[sm.infoText, {color: darkMode ? '#93c5fd' : '#1e40af'}]}>
                   Notifikácie sa automaticky naplánujú pri každej zmene.{'\n'}
-                  Ranná zmena: pripomienky pred 08:30{'\n'}
-                  Obedná zmena: pripomienky pred 15:00
+                  Ranná zmena: notifikácia v čase 1. riadku tabuľky{'\n'}
+                  Obedná zmena: notifikácia v čase 1. riadku tabuľky
                 </Text>
               </View>
               <TouchableOpacity
