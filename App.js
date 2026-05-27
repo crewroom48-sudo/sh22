@@ -329,13 +329,15 @@ export default function ShiftChecklistScreen() {
         return s > 0 ? s : null;
       };
 
-      // Build a trigger for a one-shot future date.
-      // type: DATE is required in expo-notifications ~0.29 (SDK 52) — omitting
-      // it causes the trigger to be silently ignored and the notification fires
-      // immediately instead of at the scheduled time.
+      // Build a one-shot trigger using TIME_INTERVAL (seconds from now).
+      // This is the same mechanism used by the test notification which is
+      // confirmed to fire correctly in the background and on the lock screen.
+      // The DATE trigger has known issues on some Android versions where it
+      // silently fails to fire when the app is closed or backgrounded.
       const makeTrigger = (fireAt) => ({
-        type: Notifications.SchedulableTriggerInputTypes.DATE,
-        date: fireAt,
+        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds: Math.max(1, Math.round((fireAt.getTime() - now.getTime()) / 1000)),
+        repeats: false,
         channelId: 'default',
       });
 
