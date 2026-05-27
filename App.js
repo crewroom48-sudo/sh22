@@ -38,24 +38,29 @@ const SUCCESS = '#22c55e';
 
 // ─── AsyncStorage keys ────────────────────────────────────────────────────────
 const KEYS = {
-  shared:           'shift_shared',
-  morning_before:   'morning_before_checklist',
-  morning_during:   'morning_during_checklist',
-  morning_after:    'morning_after_checklist',
-  morning_table:    'morning_table_data',
-  morning_walk:     'morning_walk_times',
-  afternoon_before: 'afternoon_before_checklist',
-  afternoon_during: 'afternoon_during_checklist',
-  afternoon_after:  'afternoon_after_checklist',
-  afternoon_table:  'afternoon_table_data',
-  afternoon_walk:   'afternoon_walk_times',
-  checks:           'shift_checks',
-  duringChecks:     'shift_during_checks',
-  afterChecks:      'shift_after_checks',
-  walkChecks:       'shift_walk_checks',
-  morning_notes:    'morning_notes',
-  afternoon_notes:  'afternoon_notes',
-  password:         'shift_custom_password',
+  shared:            'shift_shared',
+  morning_name:      'morning_manager_name',
+  afternoon_name:    'afternoon_manager_name',
+  morning_hours:     'morning_hours_worked',
+  afternoon_hours:   'afternoon_hours_worked',
+  morning_before:    'morning_before_checklist',
+  morning_during:    'morning_during_checklist',
+  morning_after:     'morning_after_checklist',
+  morning_table:     'morning_table_data',
+  morning_walk:      'morning_walk_times',
+  afternoon_before:  'afternoon_before_checklist',
+  afternoon_during:  'afternoon_during_checklist',
+  afternoon_after:   'afternoon_after_checklist',
+  afternoon_table:   'afternoon_table_data',
+  afternoon_walk:    'afternoon_walk_times',
+  checks:            'shift_checks',
+  duringChecks:      'shift_during_checks',
+  afterChecks:       'shift_after_checks',
+  walkChecks:        'shift_walk_checks',
+  morning_notes:     'morning_notes',
+  afternoon_notes:   'afternoon_notes',
+  password:          'shift_custom_password',
+  notif_prefs:       'shift_notif_prefs',
 };
 
 // ─── Default checklist content ────────────────────────────────────────────────
@@ -124,24 +129,34 @@ export default function ShiftChecklistScreen() {
   const formattedDate = `${today.getDate().toString().padStart(2,'0')}.${(today.getMonth()+1).toString().padStart(2,'0')}.${today.getFullYear()}`;
 
   // ── Shared state ────────────────────────────────────────────────────────────
-  const [shiftType,      setShiftType]      = useState('morning');
-  const [name,           setName]           = useState('');
-  const [hoursWorked,    setHoursWorked]    = useState('');
-  const [morningNotes,   setMorningNotes]   = useState('');
-  const [afternoonNotes, setAfternoonNotes] = useState('');
-  const [darkMode,       setDarkMode]       = useState(false);
-  const [showSettings,   setShowSettings]   = useState(false);
-  const [password,       setPassword]       = useState('');
-  const [showPassword,   setShowPassword]   = useState(false);
-  const [editingEnabled, setEditingEnabled] = useState(false);
-  const [customPassword, setCustomPassword] = useState('');
-  const [showChangePw,   setShowChangePw]   = useState(false);
-  const [cpCurrent,      setCpCurrent]      = useState('');
-  const [cpNew,          setCpNew]          = useState('');
-  const [cpConfirm,      setCpConfirm]      = useState('');
-  const [showCpCurrent,  setShowCpCurrent]  = useState(false);
-  const [showCpNew,      setShowCpNew]      = useState(false);
-  const [showCpConfirm,  setShowCpConfirm]  = useState(false);
+  const [shiftType,           setShiftType]           = useState('morning');
+  const [morningName,         setMorningName]         = useState('');
+  const [afternoonName,       setAfternoonName]       = useState('');
+  const [morningHoursWorked,  setMorningHoursWorked]  = useState('');
+  const [afternoonHoursWorked,setAfternoonHoursWorked]= useState('');
+  const [morningNotes,        setMorningNotes]        = useState('');
+  const [afternoonNotes,      setAfternoonNotes]      = useState('');
+  const [darkMode,            setDarkMode]            = useState(false);
+  const [showSettings,        setShowSettings]        = useState(false);
+  const [password,            setPassword]            = useState('');
+  const [showPassword,        setShowPassword]        = useState(false);
+  const [editingEnabled,      setEditingEnabled]      = useState(false);
+  const [customPassword,      setCustomPassword]      = useState('');
+  const [showChangePw,        setShowChangePw]        = useState(false);
+  const [cpCurrent,           setCpCurrent]           = useState('');
+  const [cpNew,               setCpNew]               = useState('');
+  const [cpConfirm,           setCpConfirm]           = useState('');
+  const [showCpCurrent,       setShowCpCurrent]       = useState(false);
+  const [showCpNew,           setShowCpNew]           = useState(false);
+  const [showCpConfirm,       setShowCpConfirm]       = useState(false);
+
+  // ── Notification preferences ─────────────────────────────────────────────────
+  const [notifPrefs, setNotifPrefs] = useState({
+    morningPrep:    true,
+    morningTable:   true,
+    afternoonPrep:  true,
+    afternoonTable: true,
+  });
 
   // ── Checkbox states ──────────────────────────────────────────────────────────
   const [checks,       setChecks]       = useState({});
@@ -165,13 +180,19 @@ export default function ShiftChecklistScreen() {
 
   // ── Derived: active shift shortcuts ─────────────────────────────────────────
   const isMorning    = shiftType === 'morning';
-  const checklist    = isMorning ? morningBefore  : afternoonBefore;
-  const duringList   = isMorning ? morningDuring  : afternoonDuring;
-  const afterList    = isMorning ? morningAfter   : afternoonAfter;
-  const tableData    = isMorning ? morningTable   : afternoonTable;
-  const walkTimes    = isMorning ? morningWalk    : afternoonWalk;
-  const currentHours = isMorning ? MORNING_HOURS  : AFTERNOON_HOURS;
+  const checklist    = isMorning ? morningBefore       : afternoonBefore;
+  const duringList   = isMorning ? morningDuring       : afternoonDuring;
+  const afterList    = isMorning ? morningAfter        : afternoonAfter;
+  const tableData    = isMorning ? morningTable        : afternoonTable;
+  const walkTimes    = isMorning ? morningWalk         : afternoonWalk;
+  const currentHours = isMorning ? MORNING_HOURS       : AFTERNOON_HOURS;
   const prefix       = shiftType;
+
+  // Per-shift name and hours — completely independent between shifts
+  const name         = isMorning ? morningName         : afternoonName;
+  const setName      = isMorning ? setMorningName      : setAfternoonName;
+  const hoursWorked  = isMorning ? morningHoursWorked  : afternoonHoursWorked;
+  const setHoursWorked = isMorning ? setMorningHoursWorked : setAfternoonHoursWorked;
 
   const setChecklist  = (v) => isMorning ? setMorningBefore(v)  : setAfternoonBefore(v);
   const setDuringList = (v) => isMorning ? setMorningDuring(v)  : setAfternoonDuring(v);
@@ -207,7 +228,7 @@ export default function ShiftChecklistScreen() {
       }
       await loadAll();
     })();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadAll = async () => {
     try {
@@ -217,10 +238,17 @@ export default function ShiftChecklistScreen() {
       };
 
       const shared = await load(KEYS.shared, {});
-      setName(shared.name || '');
-      setHoursWorked(shared.hoursWorked || '');
       setDarkMode(shared.darkMode || false);
       setShiftType(shared.shiftType || 'morning');
+
+      const mname = await AsyncStorage.getItem(KEYS.morning_name);
+      if (mname !== null) setMorningName(mname);
+      const aname = await AsyncStorage.getItem(KEYS.afternoon_name);
+      if (aname !== null) setAfternoonName(aname);
+      const mhrs = await AsyncStorage.getItem(KEYS.morning_hours);
+      if (mhrs !== null) setMorningHoursWorked(mhrs);
+      const ahrs = await AsyncStorage.getItem(KEYS.afternoon_hours);
+      if (ahrs !== null) setAfternoonHoursWorked(ahrs);
 
       setChecks(      await load(KEYS.checks,       {}));
       setDuringChecks(await load(KEYS.duringChecks, {}));
@@ -251,6 +279,9 @@ export default function ShiftChecklistScreen() {
       const pw = await AsyncStorage.getItem(KEYS.password);
       if (pw) setCustomPassword(pw);
 
+      const np = await load(KEYS.notif_prefs, {morningPrep:true,morningTable:true,afternoonPrep:true,afternoonTable:true});
+      setNotifPrefs(np);
+
     } catch (e) { console.log('loadAll error:', e); }
     isInitialized.current = true;
     if (Platform.OS !== 'web') {
@@ -264,8 +295,24 @@ export default function ShiftChecklistScreen() {
     AsyncStorage.setItem(key, JSON.stringify(value)).catch(console.log);
   };
 
-  useEffect(() => { save(KEYS.shared, { name, hoursWorked, darkMode, shiftType }); },
-    [name, hoursWorked, darkMode, shiftType]);
+  useEffect(() => { save(KEYS.shared, { darkMode, shiftType }); }, [darkMode, shiftType]);
+  useEffect(() => { save(KEYS.notif_prefs, notifPrefs); }, [notifPrefs]);
+  useEffect(() => {
+    if (!isInitialized.current) return;
+    AsyncStorage.setItem(KEYS.morning_name,    morningName).catch(console.log);
+  }, [morningName]);
+  useEffect(() => {
+    if (!isInitialized.current) return;
+    AsyncStorage.setItem(KEYS.afternoon_name,  afternoonName).catch(console.log);
+  }, [afternoonName]);
+  useEffect(() => {
+    if (!isInitialized.current) return;
+    AsyncStorage.setItem(KEYS.morning_hours,   morningHoursWorked).catch(console.log);
+  }, [morningHoursWorked]);
+  useEffect(() => {
+    if (!isInitialized.current) return;
+    AsyncStorage.setItem(KEYS.afternoon_hours, afternoonHoursWorked).catch(console.log);
+  }, [afternoonHoursWorked]);
 
   useEffect(() => { save(KEYS.checks,       checks);       }, [checks]);
   useEffect(() => { save(KEYS.duringChecks, duringChecks); }, [duringChecks]);
@@ -312,7 +359,7 @@ export default function ShiftChecklistScreen() {
   useEffect(() => {
     if (!isInitialized.current) return;
     if (Platform.OS !== 'web') debouncedSchedule();
-  }, [checks, morningTable, afternoonTable, morningBefore, afternoonBefore]);
+  }, [checks, morningTable, afternoonTable, morningBefore, afternoonBefore]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const scheduleAllNotifications = async () => {
     if (Platform.OS === 'web') return;
@@ -350,52 +397,50 @@ export default function ShiftChecklistScreen() {
       const morningCutoff = !isNaN(afFirstHour) ? todayAt(afFirstHour, 0) : todayAt(23, 59);
 
       // ── 1. Morning table notifications ───────────────────────────────────
-      // Each row fires at (hour+1):16 if salesReality or tcReality is empty.
-      for (const row of morningTable) {
-        const h = parseInt(row.hour);
-        if (isNaN(h)) continue;
-        const fireAt = todayAt(h + 1, 16);
-        if (fireAt >= morningCutoff) continue;       // stop before 15:00
-        if (secsUntil(fireAt) === null) continue;    // already past
-        if (row.salesReality === '' || row.tcReality === '') {
-          await Notifications.scheduleNotificationAsync({
-            identifier: `table_morning_${row.hour}`,
-            content: {
-              title: `Nevypísal si hodinu ${row.hour}:00`,
-              body: 'Sales Real alebo TC Real nie je vyplnené!',
-              sound: 'default',
-            },
-            trigger: makeTrigger(fireAt),
-          });
+      if (notifPrefs.morningTable) {
+        for (const row of morningTable) {
+          const h = parseInt(row.hour);
+          if (isNaN(h)) continue;
+          const fireAt = todayAt(h + 1, 16);
+          if (fireAt >= morningCutoff) continue;
+          if (secsUntil(fireAt) === null) continue;
+          if (row.salesReality === '' || row.tcReality === '') {
+            await Notifications.scheduleNotificationAsync({
+              identifier: `table_morning_${row.hour}`,
+              content: {
+                title: `Nevypísal si hodinu ${row.hour}:00`,
+                body: 'Sales Real alebo TC Real nie je vyplnené!',
+                sound: 'default',
+              },
+              trigger: makeTrigger(fireAt),
+            });
+          }
         }
       }
 
       // ── 2. Afternoon table notifications ─────────────────────────────────
-      // AFTERNOON_HOURS starts at 15, so the earliest fire time is 16:16 —
-      // always within afternoon shift, no cutoff needed.
-      for (const row of afternoonTable) {
-        const h = parseInt(row.hour);
-        if (isNaN(h)) continue;
-        const fireAt = todayAt(h + 1, 16);
-        if (secsUntil(fireAt) === null) continue;
-        if (row.salesReality === '' || row.tcReality === '') {
-          await Notifications.scheduleNotificationAsync({
-            identifier: `table_afternoon_${row.hour}`,
-            content: {
-              title: `Nevypísal si hodinu ${row.hour}:00`,
-              body: 'Sales Real alebo TC Real nie je vyplnené!',
-              sound: 'default',
-            },
-            trigger: makeTrigger(fireAt),
-          });
+      if (notifPrefs.afternoonTable) {
+        for (const row of afternoonTable) {
+          const h = parseInt(row.hour);
+          if (isNaN(h)) continue;
+          const fireAt = todayAt(h + 1, 16);
+          if (secsUntil(fireAt) === null) continue;
+          if (row.salesReality === '' || row.tcReality === '') {
+            await Notifications.scheduleNotificationAsync({
+              identifier: `table_afternoon_${row.hour}`,
+              content: {
+                title: `Nevypísal si hodinu ${row.hour}:00`,
+                body: 'Sales Real alebo TC Real nie je vyplnené!',
+                sound: 'default',
+              },
+              trigger: makeTrigger(fireAt),
+            });
+          }
         }
       }
 
       // ── 3. Morning preparation notification ──────────────────────────────
-      // Fires at firstHour:01 so it arrives just after the shift starts.
-      // One shot only — the fireAt > now guard ensures it never re-queues
-      // after it has fired.
-      if (morningTable.length) {
+      if (notifPrefs.morningPrep && morningTable.length) {
         const firstHour = parseInt(morningTable[0].hour);
         if (!isNaN(firstHour)) {
           const fireAt = todayAt(firstHour, 1);
@@ -419,9 +464,7 @@ export default function ShiftChecklistScreen() {
       }
 
       // ── 4. Afternoon preparation notification ─────────────────────────────
-      // Fires at firstHour:01 (e.g. 15:01). Scheduled upfront so it fires
-      // even if the app is closed or the phone is locked during morning hours.
-      if (afternoonTable.length) {
+      if (notifPrefs.afternoonPrep && afternoonTable.length) {
         const firstHour = parseInt(afternoonTable[0].hour);
         if (!isNaN(firstHour)) {
           const fireAt = todayAt(firstHour, 1);
@@ -542,6 +585,13 @@ export default function ShiftChecklistScreen() {
   const calcSum  = (f) => tableData.reduce((s,r) => s + (parseFloat(r[f]) || 0), 0);
   const calcAvg  = () => { const v=tableData.map(r=>parseFloat(r.r2p)).filter(x=>!isNaN(x)); return v.length ? (v.reduce((s,x)=>s+x,0)/v.length).toFixed(2) : '0'; };
   const calcProd = (f) => { const h=parseFloat(hoursWorked)||0; return h ? (calcSum(f)/h).toFixed(2) : '0'; };
+  // AVG = Sales Real / TC Real pre jeden riadok
+  const rowAvg   = (row) => { const s=parseFloat(row.salesReality),t=parseFloat(row.tcReality); return t>0 ? (s/t).toFixed(2) : '-'; };
+  // Priemerný nákup za celú zmenu = priemer hodinových AVG hodnôt
+  const calcAvgPurchase = () => {
+    const vals = tableData.map(r => { const s=parseFloat(r.salesReality),t=parseFloat(r.tcReality); return t>0 ? s/t : null; }).filter(v=>v!==null);
+    return vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(2) : '-';
+  };
 
   const perfColor = (plan, real) => {
     const p=parseFloat(plan)||0, r=parseFloat(real)||0;
@@ -609,9 +659,10 @@ export default function ShiftChecklistScreen() {
 
   // ── Theme ─────────────────────────────────────────────────────────────────────
   const T = darkMode ? darkTheme : lightTheme;
-  const W    = [36,60,60,60,60,44,44,44,44];
-  const COLS = ['Hod','Sales\nPlan','Sales\nReal','TC\nPlan','TC\nReal','MFY','R2P','SEND','Del'];
-  const FIELDS = ['salesPlan','salesReality','tcPlan','tcReality','mfy','r2p','sendKuch','del'];
+  const W        = [36,60,60,60,60,40,44,44,44,44];
+  const COLS     = ['Hod','Sales\nPlan','Sales\nReal','TC\nPlan','TC\nReal','AVG','MFY','R2P','SEND','Del'];
+  const FIELDS_A = ['salesPlan','salesReality','tcPlan','tcReality'];
+  const FIELDS_B = ['mfy','r2p','sendKuch','del'];
 
   // ── Progress counts ───────────────────────────────────────────────────────────
   const countDone = (stateObj, pfx, total) =>
@@ -757,12 +808,24 @@ export default function ShiftChecklistScreen() {
                   </TouchableOpacity>
                 )}
                 <TextInput style={[s.tdCell, {width:W[0], backgroundColor: T.tdBg, color: T.tdText, borderColor: T.border, fontWeight:'700'}]} value={row.hour} onChangeText={(v) => updateRow(i,'hour',v)} />
-                {FIELDS.map((f, fi) => (
+                {FIELDS_A.map((f, fi) => (
                   <TextInput key={f}
                     style={[s.tdCell, {width:W[fi+1], backgroundColor: T.tdBg, color: T.tdText, borderColor: T.border},
-                      (f==='mfy'||f==='r2p')    && {backgroundColor: T.spBg, color: T.spText},
                       f==='salesReality' && {backgroundColor: perfColor(row.salesPlan, row.salesReality)},
                       f==='tcReality'    && {backgroundColor: perfColor(row.tcPlan, row.tcReality)},
+                    ]}
+                    value={row[f]}
+                    onChangeText={(v) => updateRow(i, f, v)}
+                    keyboardType="numeric"
+                  />
+                ))}
+                <Text style={[s.tdCell, {width:W[5], backgroundColor: T.spBg, color: T.spText, borderColor: T.border, textAlign:'center', fontWeight:'700', paddingTop:8}]}>
+                  {rowAvg(row)}
+                </Text>
+                {FIELDS_B.map((f, fi) => (
+                  <TextInput key={f}
+                    style={[s.tdCell, {width:W[fi+6], backgroundColor: T.tdBg, color: T.tdText, borderColor: T.border},
+                      (f==='mfy'||f==='r2p') && {backgroundColor: T.spBg, color: T.spText},
                     ]}
                     value={row[f]}
                     onChangeText={(v) => updateRow(i, f, v)}
@@ -773,7 +836,7 @@ export default function ShiftChecklistScreen() {
             ))}
             <View style={{flexDirection:'row'}}>
               {editingEnabled && <View style={[s.sumCell, {width:36, backgroundColor: T.sumBg, borderColor: T.border}]} />}
-              {['SUM', String(calcSum('salesPlan')), String(calcSum('salesReality')), String(calcSum('tcPlan')), String(calcSum('tcReality')), String(calcSum('mfy')), calcAvg(), String(calcSum('sendKuch')), String(calcSum('del'))].map((v, i) => (
+              {['SUM', String(calcSum('salesPlan')), String(calcSum('salesReality')), String(calcSum('tcPlan')), String(calcSum('tcReality')), calcAvgPurchase(), String(calcSum('mfy')), calcAvg(), String(calcSum('sendKuch')), String(calcSum('del'))].map((v, i) => (
                 <Text key={i} style={[s.sumCell, {width:W[i], backgroundColor: T.sumBg, color: T.sumText, borderColor: T.border}]}>{v}</Text>
               ))}
             </View>
@@ -952,15 +1015,44 @@ export default function ShiftChecklistScreen() {
 
             {/* ─── NOTIFIKÁCIE ─── */}
             <Text style={[sm.sectionLabel, {color: T.subText}]}>NOTIFIKÁCIE</Text>
+
+            {/* Prepínače pre každú sekciu */}
             <View style={[sm.card, {backgroundColor: T.card, borderColor: T.border}]}>
-              <View style={[sm.infoBox, {backgroundColor: darkMode ? '#0c1a2e' : '#eff6ff'}]}>
-                <Ionicons name="information-circle-outline" size={16} color={darkMode ? '#93c5fd' : '#3b82f6'} style={{marginRight: 8, marginTop: 1}} />
-                <Text style={[sm.infoText, {color: darkMode ? '#93c5fd' : '#1e40af'}]}>
-                  Notifikácie sa automaticky naplánujú pri každej zmene.{'\n'}
-                  Tabuľka: upozornenie o 15 min po každej hodine.{'\n'}
-                  Pred zmenou: upozornenie v čase 1. riadku tabuľky.
-                </Text>
-              </View>
+              {[
+                { key: 'morningPrep',    icon: 'sunny-outline',        color: '#f59e0b', label: 'Ranná zmena — príprava',  sub: 'Upozornenie na začiatku rannej zmeny' },
+                { key: 'morningTable',   icon: 'bar-chart-outline',    color: '#3b82f6', label: 'Ranná zmena — tabuľka',   sub: 'Upozornenie 16 min po každej hodine' },
+                { key: 'afternoonPrep',  icon: 'partly-sunny-outline', color: '#f59e0b', label: 'Obedná zmena — príprava', sub: 'Upozornenie na začiatku obednej zmeny' },
+                { key: 'afternoonTable', icon: 'stats-chart-outline',  color: '#3b82f6', label: 'Obedná zmena — tabuľka',  sub: 'Upozornenie 16 min po každej hodine' },
+              ].map(({ key, icon, color, label, sub }, idx, arr) => (
+                <React.Fragment key={key}>
+                  <View style={[sm.row, {paddingVertical: 14, alignItems: 'center'}]}>
+                    <View style={[sm.rowLeft, {flex: 1, marginRight: 8}]}>
+                      <View style={[sm.iconBox, {backgroundColor: notifPrefs[key] ? (darkMode ? '#1a2e1a' : '#f0fdf4') : T.sectionIconBg}]}>
+                        <Ionicons name={icon} size={16} color={notifPrefs[key] ? '#22c55e' : T.sectionIcon} />
+                      </View>
+                      <View style={{flex: 1}}>
+                        <Text style={[sm.rowLabel, {color: T.text, fontSize: 14}]}>{label}</Text>
+                        <Text style={{fontSize: 11, color: T.subText, marginTop: 2}}>{sub}</Text>
+                      </View>
+                    </View>
+                    <Switch
+                      value={notifPrefs[key]}
+                      onValueChange={(v) => {
+                        const next = {...notifPrefs, [key]: v};
+                        setNotifPrefs(next);
+                        setTimeout(() => scheduleAllNotifications(), 400);
+                      }}
+                      trackColor={{false: '#cbd5e1', true: '#22c55e'}}
+                      thumbColor="#fff"
+                    />
+                  </View>
+                  {idx < arr.length - 1 && <View style={{height: 1, backgroundColor: T.border, marginHorizontal: 16}} />}
+                </React.Fragment>
+              ))}
+            </View>
+
+            {/* Akcie a test */}
+            <View style={[sm.card, {backgroundColor: T.card, borderColor: T.border}]}>
               <TouchableOpacity
                 style={[sm.actionBtn, {backgroundColor: darkMode ? '#111e34' : '#f1f5f9', borderWidth: 1, borderColor: T.border}]}
                 onPress={async () => {
@@ -977,7 +1069,6 @@ export default function ShiftChecklistScreen() {
                 <Text style={[sm.actionBtnTxt, {color: T.text}]}>Znovu naplánovať notifikácie</Text>
               </TouchableOpacity>
 
-              {/* ─── Test buttons ─── */}
               <View style={{height: 1, backgroundColor: T.border, marginHorizontal: 16, marginBottom: 12}} />
               <View style={[sm.infoBox, {backgroundColor: darkMode ? '#1a1200' : '#fffbeb', borderColor: darkMode ? '#78350f' : '#fcd34d', borderWidth: 1, marginBottom: 4}]}>
                 <Ionicons name="flask-outline" size={15} color={darkMode ? '#fbbf24' : '#92400e'} style={{marginRight: 8, marginTop: 1}} />
