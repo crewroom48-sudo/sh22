@@ -410,7 +410,7 @@ export default function ShiftChecklistScreen() {
     );
     setMorningWalk(prev => {
       const oldMap = {};
-      morningHoursList.forEach((h, i) => { if (prev[i] !== undefined) oldMap[h] = prev[i]; });
+      prev.forEach(t => { const h = t.substring(0, 2); oldMap[h] = t; });
       return morningHoursList.map(h => oldMap[h] !== undefined ? oldMap[h] : `${h}:00`);
     });
   }, [JSON.stringify(morningHoursList)]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -423,7 +423,7 @@ export default function ShiftChecklistScreen() {
     );
     setAfternoonWalk(prev => {
       const oldMap = {};
-      afternoonHoursList.forEach((h, i) => { if (prev[i] !== undefined) oldMap[h] = prev[i]; });
+      prev.forEach(t => { const h = t.substring(0, 2); oldMap[h] = t; });
       return afternoonHoursList.map(h => oldMap[h] !== undefined ? oldMap[h] : `${h}:00`);
     });
   }, [JSON.stringify(afternoonHoursList)]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1551,7 +1551,7 @@ export default function ShiftChecklistScreen() {
                         <TouchableOpacity style={sm_hBtn} onPress={() => setShiftHours(p=>({...p, morningStart: Math.max(0, p.morningStart-1)}))} activeOpacity={0.7}><Ionicons name="remove" size={16} color={T.text} /></TouchableOpacity>
                         <TextInput style={[sm_hInput, {color: '#f59e0b', borderColor: '#f59e0b'}]} value={String(shiftHours.morningStart)} keyboardType="numeric" maxLength={2} onChangeText={(v)=>{const n=parseInt(v);if(!isNaN(n)&&n>=0&&n<=23)setShiftHours(p=>({...p,morningStart:n}));else if(v==='')setShiftHours(p=>({...p,morningStart:0}));}} />
                         <TouchableOpacity style={sm_hBtn} onPress={() => setShiftHours(p=>({...p, morningStart: Math.min(p.morningEnd, p.morningStart+1)}))} activeOpacity={0.7}><Ionicons name="add" size={16} color={T.text} /></TouchableOpacity>
-                        <Text style={{color: T.subText, fontSize:12, color: T.subText}}>hodín</Text>
+                        <Text style={{color: T.subText, fontSize:12}}>hodín</Text>
                       </View>
                       <View style={{flexDirection:'row', alignItems:'center', gap:10}}>
                         <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:36}}>DO</Text>
