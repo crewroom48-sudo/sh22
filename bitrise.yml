@@ -1,56 +1,39 @@
-format_version: "13"
-default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
-project_type: react-native
+Config:
+- pipeline_intermediate_files: <unset>
+- build_url: https://app.bitrise.io/app/7349aad4-4c95-4585-ad87-9e30ed6a5d64/build/83b13945-fd65-4806-86c7-5960b03fc108
+- build_api_token: [REDACTED]
+- is_compress: false
+- zip_name: <unset>
+- deploy_path: /Users/vagrant/deploy
+- notify_user_groups: everyone
+- always_notify_user_groups: <unset>
+- notify_email_list: <unset>
+- is_enable_public_page: true
+- public_install_page_url_map_format: {{range $index, $element := .}}{{if $index}}|{{end}}{{$element.File}}=>{{$element.URL}}{{end}}
+- permanent_download_url_map_format: {{range $index, $element := .}}{{if $index}}|{{end}}{{$element.File}}=>{{$element.URL}}{{end}}
+- details_page_url_map_format: {{range $index, $element := .}}{{if $index}}|{{end}}{{$element.File}}=>{{$element.URL}}{{end}}
+- BITRISE_BUILD_SLUG: 83b13945-fd65-4806-86c7-5960b03fc108
+- BITRISE_TEST_DEPLOY_DIR: /var/folders/f6/wf2hj3cj75qdwmt5rn814r_00000gn/T/test_results1868528836
+- BITRISE_APP_SLUG: 7349aad4-4c95-4585-ad87-9e30ed6a5d64
+- addon_api_base_url: [REDACTED]
+- addon_api_token: [REDACTED]
+- files_to_redact: <unset>
+- debug_mode: false
+- use_legacy_xcresult_extraction_method: false
+- bundletool_version: 1.15.0
+- BITRISE_DEPLOY_UPLOAD_CONCURRENCY: 10
+- BITRISE_HTML_REPORT_DIR: /var/folders/f6/wf2hj3cj75qdwmt5rn814r_00000gn/T/html-reports3409450738
 
-workflows:
-  primary:
-    steps:
+Collecting files to redact...
+No files to redact...
 
-    - git-clone@8: {}
+Collecting files to deploy...
+Build Artifact deployment mode: deploying the content of the deploy directory
+No deployment files were defined. Please check the deploy_path and pipeline_intermediate_files inputs.
 
-    - script@1:
-        title: Set Node version
-        inputs:
-        - content: |
-            #!/usr/bin/env bash
-            set -ex
-            nvm install 20
-            nvm use 20
-            node -v
-            npm -v
+Collecting test results...
+No test results found
 
-    - npm@1:
-        title: npm install
-        inputs:
-        - command: install
-
-    - script@1:
-        title: Expo Prebuild Android
-        inputs:
-        - content: |
-            #!/usr/bin/env bash
-            set -ex
-            npx expo prebuild --platform android --no-install
-
-    - script@1:
-        title: Build APK
-        inputs:
-        - content: |
-            #!/usr/bin/env bash
-            set -ex
-            cd android
-            chmod +x gradlew
-            ./gradlew assembleRelease
-            APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
-            echo "APK found: $APK"
-            cp "$APK" "$BITRISE_DEPLOY_DIR/ShiftChecklist.apk"
-
-    - deploy-to-bitrise-io@2:
-        title: Deploy APK as artifact
-        inputs:
-        - notify_user_groups: everyone
-
-meta:
-  bitrise.io:
-    stack: linux-docker-android-22.04
-    machine_type_id: standard
+Deploying html reports...
+Found reports (0):
+Successful html report upload
