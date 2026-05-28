@@ -1015,6 +1015,70 @@ export default function ShiftChecklistScreen() {
           </View>
         )}
 
+        {/* ── PROGRESS STRIP ────────────────────────────────────────────────── */}
+        {(() => {
+          const totalItems = checklist.length + duringList.length + afterList.length + tableData.length;
+          const totalDone  = beforeDone + duringDone + afterDone + walkDone;
+          if (totalItems === 0) return null;
+          const pct = Math.round((totalDone / totalItems) * 100);
+          const allComplete = totalDone === totalItems;
+          return (
+            <View style={{marginBottom: 12}}>
+              {allComplete ? (
+                <View style={[s.countdownBox, {
+                  backgroundColor: darkMode ? '#052e16' : '#f0fdf4',
+                  borderColor:     darkMode ? '#14532d' : '#86efac',
+                  paddingVertical: 10, marginBottom: 0,
+                }]}>
+                  <View style={[s.countdownIconWrap, {
+                    backgroundColor: darkMode ? '#14532d' : '#bbf7d0',
+                  }]}>
+                    <Ionicons name='trophy' size={18} color='#22c55e' />
+                  </View>
+                  <View style={{flex:1}}>
+                    <Text style={[s.countdownLabel, {color: darkMode ? '#86efac' : '#15803d', fontWeight:'700'}]}>
+                      Výborná zmena! Všetko dokončené 🎉
+                    </Text>
+                    <Text style={[s.countdownTime, {color: '#22c55e', fontSize: 13}]}>
+                      {totalDone}/{totalItems} položiek ✓
+                    </Text>
+                  </View>
+                </View>
+              ) : (
+                <View>
+                  <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom: 5}}>
+                    <Text style={{fontSize:11, fontWeight:'700', color: T.subText, letterSpacing: 0.5}}>CELKOVÝ POSTUP ZMENY</Text>
+                    <Text style={{fontSize:12, fontWeight:'800', color: pct >= 80 ? '#22c55e' : pct >= 40 ? ACCENT : T.subText}}>
+                      {pct}%
+                    </Text>
+                  </View>
+                  <View style={{height: 6, borderRadius: 99, backgroundColor: darkMode ? '#1e293b' : '#e2e8f0', overflow:'hidden'}}>
+                    <View style={{
+                      height: 6,
+                      borderRadius: 99,
+                      width: pct + '%',
+                      backgroundColor: pct >= 80 ? '#22c55e' : pct >= 40 ? ACCENT : '#64748b',
+                    }} />
+                  </View>
+                  <View style={{flexDirection:'row', justifyContent:'space-between', marginTop: 5}}>
+                    {[{label:'Pred', done:beforeDone, total:checklist.length, vis:sectionVisibility.beforeShift},
+                      {label:'Počas', done:duringDone, total:duringList.length, vis:sectionVisibility.duringShift},
+                      {label:'Obhliada', done:walkDone, total:tableData.length, vis:sectionVisibility.walkthrough},
+                      {label:'Po', done:afterDone, total:afterList.length, vis:sectionVisibility.afterShift},
+                    ].filter(x => x.vis && x.total > 0).map(({label, done, total}) => (
+                      <Text key={label} style={{fontSize:10, color: done===total ? '#22c55e' : T.subText, fontWeight: done===total ? '700' : '400'}}>
+                        {done===total
+                          ? '✓ ' + label
+                          : label + ' ' + done + '/' + total}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              )}
+            </View>
+          );
+        })()}
+
         {/* ── BEFORE + DURING CHECKLISTS ─────────────────────────────────────── */}
         {[
           {label:'Pred zmenou', icon:'clipboard-outline', items:checklist,  toggle:toggleCheck,       stateObj:checks,      pfx:`${prefix}_before`, section:'before', done:beforeDone, total:checklist.length},
@@ -1049,14 +1113,22 @@ export default function ShiftChecklistScreen() {
         {/* ── WALKTHROUGHS ───────────────────────────────────────────────────── */}
         <SectionHeader label="Obhliadky prevádzky" icon="walk-outline" done={walkDone} total={tableData.length} T={T} />
         <View style={s.walkWrap}>
-          {tableData.map((row, i) => {
+          {(() => {
+            const nowHour = new Date().getHours();
+            return tableData.map((row, i) => {
             const checked = !!walkChecks[`${prefix}_walk_${i}`];
+            const slotHour = parseInt(row.hour, 10);
+            const isCurrent = slotHour === nowHour && !checked;
             return (
               <TouchableOpacity
                 key={`${prefix}_walk_${i}`}
                 style={[s.walkBox, {
-                  backgroundColor: checked ? (darkMode ? '#052e16' : '#dcfce7') : T.card,
-                  borderColor: checked ? (darkMode ? '#14532d' : '#86efac') : T.border,
+                  backgroundColor: checked ? (darkMode ? '#052e16' : '#dcfce7')
+                    : isCurrent ? (darkMode ? '#2d1800' : '#fffbeb')
+                    : T.card,
+                  borderColor: checked ? (darkMode ? '#14532d' : '#86efac')
+                    : isCurrent ? '#f59e0b'
+                    : T.border,
                 }]}
                 onPress={() => toggleWalkCheck(`${prefix}_walk_${i}`)}
                 activeOpacity={0.8}
@@ -1070,7 +1142,8 @@ export default function ShiftChecklistScreen() {
                 />
               </TouchableOpacity>
             );
-          })}
+            });
+          })()}
         </View>
 
           </View>
@@ -1259,6 +1332,11 @@ export default function ShiftChecklistScreen() {
             value={notes}
             onChangeText={setNotes}
           />
+          {notes.length > 0 && (
+            <Text style={{fontSize:10, color: T.subText, textAlign:'right', paddingHorizontal:12, paddingBottom:6}}>
+              {notes.length} zn.
+            </Text>
+          )}
         </View>
 
           </View>
@@ -1277,6 +1355,11 @@ export default function ShiftChecklistScreen() {
             value={handoverDraft}
             onChangeText={(v) => { setHandoverDraft(v); setHandoverSaved(false); }}
           />
+          {handoverDraft.length > 0 && (
+            <Text style={{fontSize:10, color: T.subText, textAlign:'right', paddingHorizontal:12, paddingVertical:4}}>
+              {handoverDraft.length} zn.
+            </Text>
+          )}
           <View style={[s.handoverDivider, {backgroundColor: T.border}]} />
           <TouchableOpacity
             style={[s.handoverBtn, {
@@ -2060,7 +2143,7 @@ export default function ShiftChecklistScreen() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Sub-components
 // ─────────────────────────────────────────────────────────────────────────────
-function SectionHeader({ label, icon, done, total, T }) {
+const SectionHeader = React.memo(function SectionHeader({ label, icon, done, total, T }) {
   const hasProgress = done !== undefined && total !== undefined;
   const allDone = hasProgress && done === total && total > 0;
   return (
@@ -2076,9 +2159,9 @@ function SectionHeader({ label, icon, done, total, T }) {
       )}
     </View>
   );
-}
+});
 
-function CheckRow({ item, checked, editable, darkMode, T, onToggle, onChangeText, onDelete }) {
+const CheckRow = React.memo(function CheckRow({ item, checked, editable, darkMode, T, onToggle, onChangeText, onDelete }) {
   return (
     <View style={[cr.row, {
       backgroundColor: checked ? (darkMode ? '#052e16' : '#f0fdf4') : T.card,
@@ -2111,7 +2194,7 @@ function CheckRow({ item, checked, editable, darkMode, T, onToggle, onChangeText
       )}
     </View>
   );
-}
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Themes
