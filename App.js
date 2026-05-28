@@ -64,6 +64,8 @@ const KEYS = {
   notif_times:       'shift_notif_times',
   shift_hours:       'shift_hours_config',
   handover:          'shift_handover_message',
+  morning_section_vis:   'shift_morning_section_visibility',
+  afternoon_section_vis: 'shift_afternoon_section_visibility',
 };
 
 // ─── Default checklist content ────────────────────────────────────────────────
@@ -145,6 +147,11 @@ export default function ShiftChecklistScreen() {
   const [pinInput,            setPinInput]            = useState('');
   const [pinError,            setPinError]            = useState(false);
   const [editingEnabled,      setEditingEnabled]      = useState(false);
+  const [sekTab,               setSekTab]               = useState('morning');
+  const [sekciEditEnabled,      setSekciEditEnabled]      = useState(false);
+  const [showSekciPin,          setShowSekciPin]          = useState(false);
+  const [sekciPinInput,         setSekciPinInput]         = useState('');
+  const [sekciPinError,         setSekciPinError]         = useState(false);
   const [customPassword,      setCustomPassword]      = useState('');
   const [showChangePw,        setShowChangePw]        = useState(false);
   const [cpCurrent,           setCpCurrent]           = useState('');
@@ -184,6 +191,23 @@ export default function ShiftChecklistScreen() {
     afternoonStart: 15,
     afternoonEnd:   20,
   });
+
+  // ── Section visibility ───────────────────────────────────────────────────────
+  const DEFAULT_SECTION_VIS = {
+    beforeShift:  true,
+    duringShift:  true,
+    walkthrough:  true,
+    table:        true,
+    hours:        true,
+    productivity: true,
+    evaluation:   true,
+    notes:        true,
+    handover:     true,
+    afterShift:   true,
+  };
+  const [morningSectionVis, setMorningSectionVis] = useState(DEFAULT_SECTION_VIS);
+  const [afternoonSectionVis, setAfternoonSectionVis] = useState(DEFAULT_SECTION_VIS);
+  // Derived active visibility — resolved after isMorning is available (below)
 
   // ── Countdown timer ──────────────────────────────────────────────────────────
   const [timeLeft, setTimeLeft] = useState('');
@@ -240,6 +264,9 @@ export default function ShiftChecklistScreen() {
   const setHoursWorked = isMorning ? setMorningHoursWorked : setAfternoonHoursWorked;
 
   const setChecklist  = (v) => isMorning ? setMorningBefore(v)  : setAfternoonBefore(v);
+  // Derived section visibility for the active shift
+  const sectionVisibility    = isMorning ? morningSectionVis    : afternoonSectionVis;
+  const setSectionVisibility = isMorning ? setMorningSectionVis : setAfternoonSectionVis;
   const setDuringList = (v) => isMorning ? setMorningDuring(v)  : setAfternoonDuring(v);
   const setAfterList  = (v) => isMorning ? setMorningAfter(v)   : setAfternoonAfter(v);
   const setTableData  = (v) => isMorning ? setMorningTable(v)   : setAfternoonTable(v);
@@ -333,6 +360,12 @@ export default function ShiftChecklistScreen() {
       const sh = await load(KEYS.shift_hours, {morningStart:8,morningEnd:14,afternoonStart:15,afternoonEnd:20});
       setShiftHours(sh);
 
+      const DEFAULT_SV = {beforeShift:true,duringShift:true,walkthrough:true,table:true,hours:true,productivity:true,evaluation:true,notes:true,handover:true,afterShift:true};
+      const msv = await load(KEYS.morning_section_vis, DEFAULT_SV);
+      setMorningSectionVis(msv);
+      const asv = await load(KEYS.afternoon_section_vis, DEFAULT_SV);
+      setAfternoonSectionVis(asv);
+
       // Show handover popup if previous manager left messages
       const hmRaw = await AsyncStorage.getItem(KEYS.handover);
       if (hmRaw) {
@@ -401,6 +434,8 @@ export default function ShiftChecklistScreen() {
   useEffect(() => { save(KEYS.afternoon_after,  afternoonAfter);  }, [afternoonAfter]);
   useEffect(() => { save(KEYS.afternoon_table,  afternoonTable);  }, [afternoonTable]);
   useEffect(() => { save(KEYS.afternoon_walk,   afternoonWalk);   }, [afternoonWalk]);
+  useEffect(() => { save(KEYS.morning_section_vis,   morningSectionVis);   }, [morningSectionVis]);
+  useEffect(() => { save(KEYS.afternoon_section_vis, afternoonSectionVis); }, [afternoonSectionVis]);
 
   // ── Sync table & walk when morning hours change ──────────────────────────────
   useEffect(() => {
@@ -800,6 +835,33 @@ export default function ShiftChecklistScreen() {
     setPinError(false);
   };
 
+  const unlockSekciEditing = (pin) => {
+    const pw = customPassword || EDIT_PASSWORD;
+    if (pin === pw) {
+      setSekciEditEnabled(true);
+      setShowSekciPin(false);
+      setSekciPinInput('');
+      setSekciPinError(false);
+    } else {
+      setSekciPinError(true);
+      setSekciPinInput('');
+    }
+  };
+
+  const handleSekciPinPress = (digit) => {
+    if (sekciPinInput.length >= 4) return;
+    const next = sekciPinInput + digit;
+    setSekciPinInput(next);
+    if (next.length === 4) {
+      setTimeout(() => unlockSekciEditing(next), 120);
+    }
+  };
+
+  const handleSekciPinBack = () => {
+    setSekciPinInput(p => p.slice(0, -1));
+    setSekciPinError(false);
+  };
+
   const changePassword = async () => {
     if (cpCurrent !== activePassword) {
       Alert.alert('Chyba','Aktuálne heslo je nesprávne.');
@@ -957,7 +1019,7 @@ export default function ShiftChecklistScreen() {
         {[
           {label:'Pred zmenou', icon:'clipboard-outline', items:checklist,  toggle:toggleCheck,       stateObj:checks,      pfx:`${prefix}_before`, section:'before', done:beforeDone, total:checklist.length},
           {label:'Počas zmeny', icon:'time-outline',      items:duringList, toggle:toggleDuringCheck, stateObj:duringChecks, pfx:`${prefix}_during`, section:'during', done:duringDone, total:duringList.length},
-        ].map(({label, icon, items, toggle, stateObj, pfx, section, done, total}) => (
+        ].filter(({section}) => section === 'before' ? sectionVisibility.beforeShift : sectionVisibility.duringShift).map(({label, icon, items, toggle, stateObj, pfx, section, done, total}) => (
           <View key={`${prefix}_${section}`} style={{marginBottom: 8}}>
             <SectionHeader label={label} icon={icon} done={done} total={total} T={T} />
             {items.map((item, i) => (
@@ -982,6 +1044,8 @@ export default function ShiftChecklistScreen() {
           </View>
         ))}
 
+        {sectionVisibility.walkthrough && (
+          <View>
         {/* ── WALKTHROUGHS ───────────────────────────────────────────────────── */}
         <SectionHeader label="Obhliadky prevádzky" icon="walk-outline" done={walkDone} total={tableData.length} T={T} />
         <View style={s.walkWrap}>
@@ -1009,6 +1073,11 @@ export default function ShiftChecklistScreen() {
           })}
         </View>
 
+          </View>
+        )}
+
+        {sectionVisibility.table && (
+          <View>
         {/* ── TABLE ──────────────────────────────────────────────────────────── */}
         <SectionHeader label="Plan / Realita" icon="bar-chart-outline" T={T} />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom: 6}}>
@@ -1071,6 +1140,11 @@ export default function ShiftChecklistScreen() {
           </TouchableOpacity>
         )}
 
+          </View>
+        )}
+
+        {sectionVisibility.hours && (
+          <View>
         {/* ── HOURS ──────────────────────────────────────────────────────────── */}
         <SectionHeader label="Hodiny" icon="time-outline" T={T} />
         <TextInput
@@ -1082,6 +1156,11 @@ export default function ShiftChecklistScreen() {
           keyboardType="numeric"
         />
 
+          </View>
+        )}
+
+        {sectionVisibility.productivity && (
+          <View>
         {/* ── PRODUCTIVITY ───────────────────────────────────────────────────── */}
         <SectionHeader label="Produktivita" icon="trending-up-outline" T={T} />
         <View style={[s.prodBox, {backgroundColor: T.card, borderColor: T.border}]}>
@@ -1096,6 +1175,11 @@ export default function ShiftChecklistScreen() {
           </View>
         </View>
 
+          </View>
+        )}
+
+        {sectionVisibility.evaluation && (
+          <View>
         {/* ── HODNOTENIE ZMENY ───────────────────────────────────────────────── */}
         {(() => {
           const sp = calcSum('salesPlan');
@@ -1159,6 +1243,11 @@ export default function ShiftChecklistScreen() {
           );
         })()}
 
+          </View>
+        )}
+
+        {sectionVisibility.notes && (
+          <View>
         {/* ── NOTES ──────────────────────────────────────────────────────────── */}
         <SectionHeader label="Poznámky" icon="create-outline" T={T} />
         <View style={[s.notesBox, {backgroundColor: T.card, borderColor: T.border}]}>
@@ -1172,6 +1261,11 @@ export default function ShiftChecklistScreen() {
           />
         </View>
 
+          </View>
+        )}
+
+        {sectionVisibility.handover && (
+          <View>
         {/* ── HANDOVER ───────────────────────────────────────────────────────── */}
         <SectionHeader label="Odkaz pre ďalšiu zmenu" icon="mail-outline" T={T} />
         <View style={[s.handoverBox, {backgroundColor: T.card, borderColor: T.border}]}>
@@ -1219,6 +1313,11 @@ export default function ShiftChecklistScreen() {
           </TouchableOpacity>
         </View>
 
+          </View>
+        )}
+
+        {sectionVisibility.afterShift && (
+          <View>
         {/* ── AFTER SHIFT ────────────────────────────────────────────────────── */}
         <SectionHeader label="Po zmene" icon="moon-outline" done={afterDone} total={afterList.length} T={T} />
         {afterList.map((item, i) => (
@@ -1239,6 +1338,9 @@ export default function ShiftChecklistScreen() {
             <Ionicons name="add-circle-outline" size={16} color={T.addBtnText} style={{marginRight: 6}} />
             <Text style={[s.addTxt, {color: T.addBtnText}]}>Pridať položku</Text>
           </TouchableOpacity>
+        )}
+
+          </View>
         )}
 
         {/* ── RESET ──────────────────────────────────────────────────────────── */}
@@ -1307,6 +1409,181 @@ export default function ShiftChecklistScreen() {
                   thumbColor="#fff"
                 />
               </View>
+            </View>
+
+            {/* ─── SEKCIE ─── */}
+            <View style={sm.sectionLabelRow}>
+              <Ionicons name="eye-outline" size={12} color={T.subText} style={{marginRight: 5}} />
+              <Text style={[sm.sectionLabel, {color: T.subText}]}>SEKCIE</Text>
+            </View>
+            <View style={[sm.card, {backgroundColor: T.card, borderColor: T.border}]}>
+              {/* Lock status banner */}
+              <View style={[sm.lockBanner, {
+                backgroundColor: sekciEditEnabled
+                  ? (darkMode ? '#052e16' : '#f0fdf4')
+                  : (darkMode ? '#1a0a0a' : '#fff5f5'),
+                borderBottomColor: sekciEditEnabled
+                  ? (darkMode ? '#14532d' : '#bbf7d0')
+                  : (darkMode ? '#7f1d1d' : '#fecaca'),
+              }]}>
+                <View style={[sm.lockBannerIcon, {
+                  backgroundColor: sekciEditEnabled
+                    ? (darkMode ? '#14532d' : '#dcfce7')
+                    : (darkMode ? '#7f1d1d' : '#fee2e2'),
+                }]}>
+                  <Ionicons
+                    name={sekciEditEnabled ? 'lock-open' : 'lock-closed'}
+                    size={16}
+                    color={sekciEditEnabled ? (darkMode ? '#4ade80' : '#16a34a') : (darkMode ? '#f87171' : '#dc2626')}
+                  />
+                </View>
+                <View style={{flex:1}}>
+                  <Text style={[sm.lockBannerTitle, {color: sekciEditEnabled ? (darkMode ? '#86efac' : '#15803d') : (darkMode ? '#fca5a5' : '#dc2626')}]}>
+                    {sekciEditEnabled ? 'Editovanie sekcií je aktívne' : 'Editovanie sekcií je zamknuté'}
+                  </Text>
+                  <Text style={[sm.lockBannerSub, {color: sekciEditEnabled ? (darkMode ? '#4ade80' : '#16a34a') : (darkMode ? '#f87171' : '#ef4444')}]}>
+                    {sekciEditEnabled ? 'Môžeš skrývať/zobrazovať sekcie' : 'Zadaj heslo na odomknutie'}
+                  </Text>
+                </View>
+              </View>
+
+              {!sekciEditEnabled ? (
+                <View style={{paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16}}>
+                  {!showSekciPin ? (
+                    <TouchableOpacity
+                      style={[sm.unlockBtn, {backgroundColor: ACCENT}]}
+                      onPress={() => { setSekciPinInput(''); setSekciPinError(false); setShowSekciPin(true); }}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="keypad-outline" size={17} color="#111" style={{marginRight: 9}} />
+                      <Text style={[sm.unlockBtnTxt, {color: '#111'}]}>Zadať PIN</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={{alignItems:'center'}}>
+                      <Text style={[pin.title, {color: T.text, fontSize: 17, marginBottom: 4}]}>Zadaj PIN</Text>
+                      <Text style={[pin.sub, {color: T.subText, fontSize: 12, marginBottom: 20}]}>4-ciferný PIN pre editovanie sekcií</Text>
+                      <View style={pin.dotsRow}>
+                        {[0,1,2,3].map(i => (
+                          <View key={i} style={[
+                            pin.dot,
+                            {backgroundColor: sekciPinError ? DANGER : (sekciPinInput.length > i ? ACCENT : (darkMode ? '#334155' : '#e2e8f0'))},
+                          ]} />
+                        ))}
+                      </View>
+                      {sekciPinError && <Text style={pin.errorTxt}>Nesprávny PIN</Text>}
+                      <View style={pin.numpad}>
+                        {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((key, idx) => {
+                          if (key === '') return <View key={idx} style={pin.numKeyEmpty} />;
+                          const isBack = key === '⌫';
+                          return (
+                            <TouchableOpacity
+                              key={idx}
+                              style={[pin.numKey, {backgroundColor: isBack ? 'transparent' : (darkMode ? '#1e293b' : '#f1f5f9')}]}
+                              onPress={() => isBack ? handleSekciPinBack() : handleSekciPinPress(key)}
+                              activeOpacity={0.6}
+                            >
+                              {isBack
+                                ? <Ionicons name="backspace-outline" size={22} color={T.text} />
+                                : <Text style={[pin.numKeyTxt, {color: T.text}]}>{key}</Text>
+                              }
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => { setShowSekciPin(false); setSekciPinInput(''); setSekciPinError(false); }}
+                        style={{marginTop: 14}}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={{color: T.subText, fontSize: 13, fontWeight: '600'}}>Zrušiť</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              ) : (
+                <View>
+                  {/* Shift selector tabs */}
+                  <View style={{flexDirection:'row', padding:12, gap:8}}>
+                    <TouchableOpacity
+                      style={{flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', paddingVertical:8, paddingHorizontal:6, borderRadius:10,
+                        backgroundColor: sekTab === 'morning' ? (darkMode ? '#2d1800' : '#fffbeb') : (darkMode ? '#1e293b' : '#f1f5f9'),
+                        borderWidth:1,
+                        borderColor: sekTab === 'morning' ? '#f59e0b' : T.border,
+                      }}
+                      onPress={() => setSekTab('morning')}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name='sunny' size={14} color={sekTab === 'morning' ? '#f59e0b' : T.subText} style={{marginRight:5}} />
+                      <Text style={{fontSize:12, fontWeight:'700', color: sekTab === 'morning' ? '#f59e0b' : T.subText}}>Ranná zmena</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', paddingVertical:8, paddingHorizontal:6, borderRadius:10,
+                        backgroundColor: sekTab === 'afternoon' ? (darkMode ? '#0c1a2e' : '#eff6ff') : (darkMode ? '#1e293b' : '#f1f5f9'),
+                        borderWidth:1,
+                        borderColor: sekTab === 'afternoon' ? '#3b82f6' : T.border,
+                      }}
+                      onPress={() => setSekTab('afternoon')}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name='partly-sunny' size={14} color={sekTab === 'afternoon' ? '#3b82f6' : T.subText} style={{marginRight:5}} />
+                      <Text style={{fontSize:12, fontWeight:'700', color: sekTab === 'afternoon' ? '#3b82f6' : T.subText}}>Obedná zmena</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={[sm.divider, {backgroundColor: T.border, marginHorizontal: 0}]} />
+
+                  {/* Section switches */}
+                  {[
+                    { key: 'beforeShift',  label: 'Pred zmenou',             icon: 'clipboard-outline',   iconBg: darkMode ? '#052e16' : '#f0fdf4', iconColor: '#22c55e' },
+                    { key: 'duringShift',  label: 'Počas zmeny',             icon: 'time-outline',        iconBg: darkMode ? '#0c1a2e' : '#eff6ff', iconColor: '#3b82f6' },
+                    { key: 'walkthrough',  label: 'Obhliadky prevádzky',     icon: 'walk-outline',        iconBg: darkMode ? '#2d1800' : '#fffbeb', iconColor: '#f59e0b' },
+                    { key: 'table',        label: 'Plan / Realita',          icon: 'grid-outline',        iconBg: darkMode ? '#1a0a2e' : '#fdf4ff', iconColor: '#a855f7' },
+                    { key: 'hours',        label: 'Hodiny',                  icon: 'time-outline',        iconBg: darkMode ? '#0c1a2e' : '#eff6ff', iconColor: '#3b82f6' },
+                    { key: 'productivity', label: 'Produktivita',            icon: 'trending-up-outline', iconBg: darkMode ? '#052e16' : '#f0fdf4', iconColor: '#22c55e' },
+                    { key: 'evaluation',   label: 'Hodnotenie zmeny',        icon: 'stats-chart-outline', iconBg: darkMode ? '#2d1800' : '#fffbeb', iconColor: '#f59e0b' },
+                    { key: 'notes',        label: 'Poznámky',                icon: 'create-outline',      iconBg: darkMode ? '#0c1a2e' : '#eff6ff', iconColor: '#3b82f6' },
+                    { key: 'handover',     label: 'Odkaz pre ďalšiu zmenu', icon: 'mail-outline',        iconBg: darkMode ? '#1a0a2e' : '#fdf4ff', iconColor: '#a855f7' },
+                    { key: 'afterShift',   label: 'Po zmene',               icon: 'moon-outline',        iconBg: darkMode ? '#1a0420' : '#fdf2f8', iconColor: '#ec4899' },
+                  ].map(({ key, label, icon, iconBg, iconColor }, idx) => {
+                    const tabVis    = sekTab === 'morning' ? morningSectionVis    : afternoonSectionVis;
+                    const setTabVis = sekTab === 'morning' ? setMorningSectionVis : setAfternoonSectionVis;
+                    return (
+                      <View key={key}>
+                        <View style={[sm.divider, {backgroundColor: T.border, marginHorizontal: 0}]} />
+                        <View style={sm.row}>
+                          <View style={sm.rowLeft}>
+                            <View style={[sm.iconBox, {backgroundColor: iconBg}]}>
+                              <Ionicons name={icon} size={17} color={iconColor} />
+                            </View>
+                            <View style={sm.rowTextBlock}>
+                              <Text style={[sm.rowLabel, {color: T.text}]}>{label}</Text>
+                              <Text style={[sm.rowSub, {color: T.subText}]}>{tabVis[key] ? 'Viditeľná' : 'Skrytá'}</Text>
+                            </View>
+                          </View>
+                          <Switch
+                            value={tabVis[key]}
+                            onValueChange={(v) => setTabVis(prev => ({...prev, [key]: v}))}
+                            trackColor={{false:'#cbd5e1', true:'#7c3aed'}}
+                            thumbColor="#fff"
+                          />
+                        </View>
+                      </View>
+                    );
+                  })}
+
+                  <View style={[sm.divider, {backgroundColor: T.border, marginHorizontal: 0}]} />
+                  <View style={{padding: 16, paddingTop: 14}}>
+                    <TouchableOpacity
+                      style={[sm.unlockBtn, {backgroundColor: DANGER}]}
+                      onPress={() => { setSekciEditEnabled(false); setShowSekciPin(false); setSekciPinInput(''); setSekciPinError(false); }}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="lock-closed-outline" size={17} color="#fff" style={{marginRight: 9}} />
+                      <Text style={[sm.unlockBtnTxt, {color: '#fff'}]}>Zamknúť editovanie sekcií</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
             </View>
 
             {/* ─── EDITOVANIE ─── */}
