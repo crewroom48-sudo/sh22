@@ -1,0 +1,56 @@
+format_version: "13"
+default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
+project_type: react-native
+
+workflows:
+  primary:
+    steps:
+
+    - git-clone@8: {}
+
+    - script@1:
+        title: Set Node version
+        inputs:
+        - content: |
+            #!/usr/bin/env bash
+            set -ex
+            nvm install 20
+            nvm use 20
+            node -v
+            npm -v
+
+    - npm@1:
+        title: npm install
+        inputs:
+        - command: install
+
+    - script@1:
+        title: Expo Prebuild Android
+        inputs:
+        - content: |
+            #!/usr/bin/env bash
+            set -ex
+            npx expo prebuild --platform android --no-install
+
+    - script@1:
+        title: Build APK
+        inputs:
+        - content: |
+            #!/usr/bin/env bash
+            set -ex
+            cd android
+            chmod +x gradlew
+            ./gradlew assembleRelease
+            APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+            echo "APK found: $APK"
+            cp "$APK" "$BITRISE_DEPLOY_DIR/ShiftChecklist.apk"
+
+    - deploy-to-bitrise-io@2:
+        title: Deploy APK as artifact
+        inputs:
+        - notify_user_groups: everyone
+
+meta:
+  bitrise.io:
+    stack: linux-docker-android-22.04
+    machine_type_id: standard
