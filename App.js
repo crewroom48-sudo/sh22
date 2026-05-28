@@ -61,6 +61,7 @@ const KEYS = {
   afternoon_notes:   'afternoon_notes',
   password:          'shift_custom_password',
   notif_prefs:       'shift_notif_prefs',
+  notif_times:       'shift_notif_times',
   handover:          'shift_handover_message',
 };
 
@@ -164,6 +165,15 @@ export default function ShiftChecklistScreen() {
     morningTable:   true,
     afternoonPrep:  true,
     afternoonTable: true,
+  });
+
+  // ── Notification times ────────────────────────────────────────────────────────
+  const [notifTimes, setNotifTimes] = useState({
+    morningPrepHour:    8,   // exact hour for morning prep notification
+    morningPrepMinute:  1,   // exact minute for morning prep notification
+    afternoonPrepHour:  15,  // exact hour for afternoon prep notification
+    afternoonPrepMinute:1,   // exact minute for afternoon prep notification
+    tableMinute:        16,  // minutes into next hour for table (X+1:16)
   });
 
   // ── Checkbox states ──────────────────────────────────────────────────────────
@@ -290,6 +300,9 @@ export default function ShiftChecklistScreen() {
       const np = await load(KEYS.notif_prefs, {morningPrep:true,morningTable:true,afternoonPrep:true,afternoonTable:true});
       setNotifPrefs(np);
 
+      const nt = await load(KEYS.notif_times, {morningPrepHour:8,morningPrepMinute:1,afternoonPrepHour:15,afternoonPrepMinute:1,tableMinute:16});
+      setNotifTimes(nt);
+
       // Show handover popup if previous manager left messages
       const hmRaw = await AsyncStorage.getItem(KEYS.handover);
       if (hmRaw) {
@@ -315,6 +328,7 @@ export default function ShiftChecklistScreen() {
 
   useEffect(() => { save(KEYS.shared, { darkMode, shiftType }); }, [darkMode, shiftType]);
   useEffect(() => { save(KEYS.notif_prefs, notifPrefs); }, [notifPrefs]);
+  useEffect(() => { save(KEYS.notif_times, notifTimes); if (isInitialized.current && Platform.OS !== 'web') debouncedSchedule(); }, [notifTimes]);
   useEffect(() => {
     if (!isInitialized.current) return;
     AsyncStorage.setItem(KEYS.morning_name,    morningName).catch(console.log);
@@ -468,7 +482,7 @@ export default function ShiftChecklistScreen() {
         for (const row of morningTable) {
           const h = parseInt(row.hour);
           if (isNaN(h)) continue;
-          const fireAt = todayAt(h + 1, 16);
+          const fireAt = todayAt(h + 1, notifTimes.tableMinute);
           if (fireAt >= morningCutoff) continue;
           if (secsUntil(fireAt) === null) continue;
           if (row.salesReality === '' || row.tcReality === '') {
@@ -490,7 +504,7 @@ export default function ShiftChecklistScreen() {
         for (const row of afternoonTable) {
           const h = parseInt(row.hour);
           if (isNaN(h)) continue;
-          const fireAt = todayAt(h + 1, 16);
+          const fireAt = todayAt(h + 1, notifTimes.tableMinute);
           if (secsUntil(fireAt) === null) continue;
           if (row.salesReality === '' || row.tcReality === '') {
             await Notifications.scheduleNotificationAsync({
@@ -507,10 +521,9 @@ export default function ShiftChecklistScreen() {
       }
 
       // ── 3. Morning preparation notification ──────────────────────────────
-      if (notifPrefs.morningPrep && morningTable.length) {
-        const firstHour = parseInt(morningTable[0].hour);
-        if (!isNaN(firstHour)) {
-          const fireAt = todayAt(firstHour, 1);
+      if (notifPrefs.morningPrep) {
+        {
+          const fireAt = todayAt(notifTimes.morningPrepHour, notifTimes.morningPrepMinute);
           if (secsUntil(fireAt) !== null) {
             const complete =
               morningBefore.length > 0 &&
@@ -531,10 +544,9 @@ export default function ShiftChecklistScreen() {
       }
 
       // ── 4. Afternoon preparation notification ─────────────────────────────
-      if (notifPrefs.afternoonPrep && afternoonTable.length) {
-        const firstHour = parseInt(afternoonTable[0].hour);
-        if (!isNaN(firstHour)) {
-          const fireAt = todayAt(firstHour, 1);
+      if (notifPrefs.afternoonPrep) {
+        {
+          const fireAt = todayAt(notifTimes.afternoonPrepHour, notifTimes.afternoonPrepMinute);
           if (secsUntil(fireAt) !== null) {
             const complete =
               afternoonBefore.length > 0 &&
@@ -1322,6 +1334,122 @@ export default function ShiftChecklistScreen() {
                       {idx < arr.length - 1 && <View style={[sm.divider, {backgroundColor: T.border}]} />}
                     </React.Fragment>
                   ))}
+                </View>
+
+                {/* ─── ČASY NOTIFIKÁCIÍ ─── */}
+                <View style={sm.sectionLabelRow}>
+                  <Ionicons name="alarm-outline" size={12} color={T.subText} style={{marginRight: 5}} />
+                  <Text style={[sm.sectionLabel, {color: T.subText}]}>ČASY NOTIFIKÁCIÍ</Text>
+                </View>
+                <View style={[sm.card, {backgroundColor: T.card, borderColor: T.border}]}>
+                  {/* Morning Prep time */}
+                  <View style={{paddingHorizontal:16, paddingTop:14, paddingBottom:6}}>
+                    <View style={{flexDirection:'row', alignItems:'center', marginBottom:10}}>
+                      <View style={[sm.iconBox, {backgroundColor: darkMode ? '#2d1800' : '#fffbeb', marginRight:12}]}>
+                        <Ionicons name="sunny" size={17} color="#f59e0b" />
+                      </View>
+                      <View style={{flex:1}}>
+                        <Text style={[sm.rowLabel, {color: T.text, fontSize:14}]}>Ranná zmena — príprava</Text>
+                        <Text style={[sm.rowSub, {color: T.subText}]}>
+                          {'Notifikácia príde o ' + String(notifTimes.morningPrepHour).padStart(2,'0') + ':' + String(notifTimes.morningPrepMinute).padStart(2,'0')}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={{flexDirection:'row', alignItems:'center', gap:8}}>
+                      <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:52}}>HODINA</Text>
+                      <View style={{flexDirection:'row', alignItems:'center', gap:5}}>
+                        <TouchableOpacity style={{width:32,height:32,borderRadius:9,backgroundColor:T.card,borderWidth:1.5,borderColor:T.border,alignItems:'center',justifyContent:'center'}} onPress={() => setNotifTimes(p=>({...p,morningPrepHour:Math.max(0,(p.morningPrepHour??8)-1)}))} activeOpacity={0.7}><Ionicons name="remove" size={16} color={T.text} /></TouchableOpacity>
+                        <TextInput style={{width:46,textAlign:'center',fontSize:16,fontWeight:'800',color:ACCENT,backgroundColor:T.inputBg,borderRadius:9,borderWidth:1.5,borderColor:ACCENT,paddingVertical:5}} value={String(notifTimes.morningPrepHour??8)} keyboardType="numeric" maxLength={2} onChangeText={(v)=>{const n=parseInt(v);if(!isNaN(n)&&n>=0&&n<=23)setNotifTimes(p=>({...p,morningPrepHour:n}));else if(v==='')setNotifTimes(p=>({...p,morningPrepHour:0}));}} />
+                        <TouchableOpacity style={{width:32,height:32,borderRadius:9,backgroundColor:T.card,borderWidth:1.5,borderColor:T.border,alignItems:'center',justifyContent:'center'}} onPress={() => setNotifTimes(p=>({...p,morningPrepHour:Math.min(23,(p.morningPrepHour??8)+1)}))} activeOpacity={0.7}><Ionicons name="add" size={16} color={T.text} /></TouchableOpacity>
+                      </View>
+                      <Text style={{color:ACCENT,fontSize:20,fontWeight:'900',marginHorizontal:2}}>:</Text>
+                      <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:52}}>MINÚTA</Text>
+                      <View style={{flexDirection:'row', alignItems:'center', gap:5}}>
+                        <TouchableOpacity style={{width:32,height:32,borderRadius:9,backgroundColor:T.card,borderWidth:1.5,borderColor:T.border,alignItems:'center',justifyContent:'center'}} onPress={() => setNotifTimes(p=>({...p,morningPrepMinute:Math.max(0,(p.morningPrepMinute??1)-1)}))} activeOpacity={0.7}><Ionicons name="remove" size={16} color={T.text} /></TouchableOpacity>
+                        <TextInput style={{width:46,textAlign:'center',fontSize:16,fontWeight:'800',color:ACCENT,backgroundColor:T.inputBg,borderRadius:9,borderWidth:1.5,borderColor:ACCENT,paddingVertical:5}} value={String(notifTimes.morningPrepMinute??1)} keyboardType="numeric" maxLength={2} onChangeText={(v)=>{const n=parseInt(v);if(!isNaN(n)&&n>=0&&n<=59)setNotifTimes(p=>({...p,morningPrepMinute:n}));else if(v==='')setNotifTimes(p=>({...p,morningPrepMinute:0}));}} />
+                        <TouchableOpacity style={{width:32,height:32,borderRadius:9,backgroundColor:T.card,borderWidth:1.5,borderColor:T.border,alignItems:'center',justifyContent:'center'}} onPress={() => setNotifTimes(p=>({...p,morningPrepMinute:Math.min(59,(p.morningPrepMinute??1)+1)}))} activeOpacity={0.7}><Ionicons name="add" size={16} color={T.text} /></TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={[sm.divider, {backgroundColor: T.border, marginHorizontal:16, marginVertical:10}]} />
+
+                  {/* Afternoon Prep time */}
+                  <View style={{paddingHorizontal:16, paddingBottom:14}}>
+                    <View style={{flexDirection:'row', alignItems:'center', marginBottom:10}}>
+                      <View style={[sm.iconBox, {backgroundColor: darkMode ? '#2d1800' : '#fffbeb', marginRight:12}]}>
+                        <Ionicons name="partly-sunny" size={17} color="#f59e0b" />
+                      </View>
+                      <View style={{flex:1}}>
+                        <Text style={[sm.rowLabel, {color: T.text, fontSize:14}]}>Obedná zmena — príprava</Text>
+                        <Text style={[sm.rowSub, {color: T.subText}]}>
+                          {'Notifikácia príde o ' + String(notifTimes.afternoonPrepHour).padStart(2,'0') + ':' + String(notifTimes.afternoonPrepMinute).padStart(2,'0')}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={{flexDirection:'row', alignItems:'center', gap:8}}>
+                      <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:52}}>HODINA</Text>
+                      <View style={{flexDirection:'row', alignItems:'center', gap:5}}>
+                        <TouchableOpacity style={{width:32,height:32,borderRadius:9,backgroundColor:T.card,borderWidth:1.5,borderColor:T.border,alignItems:'center',justifyContent:'center'}} onPress={() => setNotifTimes(p=>({...p,afternoonPrepHour:Math.max(0,(p.afternoonPrepHour??15)-1)}))} activeOpacity={0.7}><Ionicons name="remove" size={16} color={T.text} /></TouchableOpacity>
+                        <TextInput style={{width:46,textAlign:'center',fontSize:16,fontWeight:'800',color:'#f59e0b',backgroundColor:T.inputBg,borderRadius:9,borderWidth:1.5,borderColor:'#f59e0b',paddingVertical:5}} value={String(notifTimes.afternoonPrepHour??15)} keyboardType="numeric" maxLength={2} onChangeText={(v)=>{const n=parseInt(v);if(!isNaN(n)&&n>=0&&n<=23)setNotifTimes(p=>({...p,afternoonPrepHour:n}));else if(v==='')setNotifTimes(p=>({...p,afternoonPrepHour:0}));}} />
+                        <TouchableOpacity style={{width:32,height:32,borderRadius:9,backgroundColor:T.card,borderWidth:1.5,borderColor:T.border,alignItems:'center',justifyContent:'center'}} onPress={() => setNotifTimes(p=>({...p,afternoonPrepHour:Math.min(23,(p.afternoonPrepHour??15)+1)}))} activeOpacity={0.7}><Ionicons name="add" size={16} color={T.text} /></TouchableOpacity>
+                      </View>
+                      <Text style={{color:'#f59e0b',fontSize:20,fontWeight:'900',marginHorizontal:2}}>:</Text>
+                      <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:52}}>MINÚTA</Text>
+                      <View style={{flexDirection:'row', alignItems:'center', gap:5}}>
+                        <TouchableOpacity style={{width:32,height:32,borderRadius:9,backgroundColor:T.card,borderWidth:1.5,borderColor:T.border,alignItems:'center',justifyContent:'center'}} onPress={() => setNotifTimes(p=>({...p,afternoonPrepMinute:Math.max(0,(p.afternoonPrepMinute??1)-1)}))} activeOpacity={0.7}><Ionicons name="remove" size={16} color={T.text} /></TouchableOpacity>
+                        <TextInput style={{width:46,textAlign:'center',fontSize:16,fontWeight:'800',color:'#f59e0b',backgroundColor:T.inputBg,borderRadius:9,borderWidth:1.5,borderColor:'#f59e0b',paddingVertical:5}} value={String(notifTimes.afternoonPrepMinute??1)} keyboardType="numeric" maxLength={2} onChangeText={(v)=>{const n=parseInt(v);if(!isNaN(n)&&n>=0&&n<=59)setNotifTimes(p=>({...p,afternoonPrepMinute:n}));else if(v==='')setNotifTimes(p=>({...p,afternoonPrepMinute:0}));}} />
+                        <TouchableOpacity style={{width:32,height:32,borderRadius:9,backgroundColor:T.card,borderWidth:1.5,borderColor:T.border,alignItems:'center',justifyContent:'center'}} onPress={() => setNotifTimes(p=>({...p,afternoonPrepMinute:Math.min(59,(p.afternoonPrepMinute??1)+1)}))} activeOpacity={0.7}><Ionicons name="add" size={16} color={T.text} /></TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={[sm.divider, {backgroundColor: T.border, marginHorizontal:16, marginVertical:10}]} />
+
+                  {/* Table minute */}
+                  <View style={{paddingHorizontal:16, paddingBottom:14}}>
+                    <View style={{flexDirection:'row', alignItems:'center', marginBottom:6}}>
+                      <View style={[sm.iconBox, {backgroundColor: darkMode ? '#0c1a2e' : '#eff6ff', marginRight:12}]}>
+                        <Ionicons name="bar-chart" size={17} color="#3b82f6" />
+                      </View>
+                      <View style={{flex:1}}>
+                        <Text style={[sm.rowLabel, {color: T.text, fontSize:14}]}>Hodinová tabuľka</Text>
+                        <Text style={[sm.rowSub, {color: T.subText}]}>
+                          {'Notifikácia vyskočí X+1:' + String(notifTimes.tableMinute).padStart(2,'0') + ' (nasledujúca hodina)'}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={{flexDirection:'row', alignItems:'center', gap:10}}>
+                      <Text style={[{color: T.subText, fontSize:13, fontWeight:'600', width:130}]}>Minúty po hodine:</Text>
+                      <View style={{flexDirection:'row', alignItems:'center', gap:6}}>
+                        <TouchableOpacity
+                          style={{width:34, height:34, borderRadius:10, backgroundColor: T.card, borderWidth:1.5, borderColor: T.border, alignItems:'center', justifyContent:'center'}}
+                          onPress={() => setNotifTimes(p => ({...p, tableMinute: Math.max(0, (p.tableMinute||16) - 1)}))}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="remove" size={18} color={T.text} />
+                        </TouchableOpacity>
+                        <TextInput
+                          style={{width:50, textAlign:'center', fontSize:17, fontWeight:'800', color:'#3b82f6', backgroundColor: T.inputBg, borderRadius:10, borderWidth:1.5, borderColor:'#3b82f6', paddingVertical:6}}
+                          value={String(notifTimes.tableMinute ?? 16)}
+                          keyboardType="numeric"
+                          maxLength={2}
+                          onChangeText={(v) => {
+                            const n = parseInt(v);
+                            if (!isNaN(n) && n >= 0 && n <= 59) setNotifTimes(p => ({...p, tableMinute: n}));
+                            else if (v === '') setNotifTimes(p => ({...p, tableMinute: 0}));
+                          }}
+                        />
+                        <TouchableOpacity
+                          style={{width:34, height:34, borderRadius:10, backgroundColor: T.card, borderWidth:1.5, borderColor: T.border, alignItems:'center', justifyContent:'center'}}
+                          onPress={() => setNotifTimes(p => ({...p, tableMinute: Math.min(59, (p.tableMinute||16) + 1)}))}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="add" size={18} color={T.text} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
                 </View>
 
                 <View style={[sm.card, {backgroundColor: T.card, borderColor: T.border}]}>
