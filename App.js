@@ -62,6 +62,7 @@ const KEYS = {
   password:          'shift_custom_password',
   notif_prefs:       'shift_notif_prefs',
   notif_times:       'shift_notif_times',
+  shift_hours:       'shift_hours_config',
   handover:          'shift_handover_message',
 };
 
@@ -176,6 +177,19 @@ export default function ShiftChecklistScreen() {
     tableMinute:        16,  // minutes into next hour for table (X+1:16)
   });
 
+  // ── Shift hours config ───────────────────────────────────────────────────────
+  const [shiftHours, setShiftHours] = useState({
+    morningStart:   8,
+    morningEnd:     14,
+    afternoonStart: 15,
+    afternoonEnd:   20,
+  });
+
+  // ── Countdown timer ──────────────────────────────────────────────────────────
+  const [timeLeft, setTimeLeft] = useState('');
+  const [shiftEnded, setShiftEnded] = useState(false);
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // ── Checkbox states ──────────────────────────────────────────────────────────
   const [checks,       setChecks]       = useState({});
   const [duringChecks, setDuringChecks] = useState({});
@@ -196,6 +210,19 @@ export default function ShiftChecklistScreen() {
   const [afternoonTable,  setAfternoonTable]  = useState(() => mkRows(AFTERNOON_HOURS));
   const [afternoonWalk,   setAfternoonWalk]   = useState(() => AFTERNOON_HOURS.map(h => `${h}:00`));
 
+  // ── Dynamic hour lists from settings ────────────────────────────────────────
+  const morningHoursList = React.useMemo(() => {
+    const s = shiftHours.morningStart, e = shiftHours.morningEnd;
+    if (e < s) return [];
+    return Array.from({length: e - s + 1}, (_, i) => String(s + i).padStart(2,'0'));
+  }, [shiftHours.morningStart, shiftHours.morningEnd]);
+
+  const afternoonHoursList = React.useMemo(() => {
+    const s = shiftHours.afternoonStart, e = shiftHours.afternoonEnd;
+    if (e < s) return [];
+    return Array.from({length: e - s + 1}, (_, i) => String(s + i).padStart(2,'0'));
+  }, [shiftHours.afternoonStart, shiftHours.afternoonEnd]);
+
   // ── Derived: active shift shortcuts ─────────────────────────────────────────
   const isMorning    = shiftType === 'morning';
   const checklist    = isMorning ? morningBefore       : afternoonBefore;
@@ -203,7 +230,7 @@ export default function ShiftChecklistScreen() {
   const afterList    = isMorning ? morningAfter        : afternoonAfter;
   const tableData    = isMorning ? morningTable        : afternoonTable;
   const walkTimes    = isMorning ? morningWalk         : afternoonWalk;
-  const currentHours = isMorning ? MORNING_HOURS       : AFTERNOON_HOURS;
+  const currentHours = isMorning ? morningHoursList    : afternoonHoursList;
   const prefix       = shiftType;
 
   // Per-shift name and hours — completely independent between shifts
@@ -303,6 +330,9 @@ export default function ShiftChecklistScreen() {
       const nt = await load(KEYS.notif_times, {morningPrepHour:8,morningPrepMinute:1,afternoonPrepHour:15,afternoonPrepMinute:1,tableMinute:16});
       setNotifTimes(nt);
 
+      const sh = await load(KEYS.shift_hours, {morningStart:8,morningEnd:14,afternoonStart:15,afternoonEnd:20});
+      setShiftHours(sh);
+
       // Show handover popup if previous manager left messages
       const hmRaw = await AsyncStorage.getItem(KEYS.handover);
       if (hmRaw) {
@@ -328,7 +358,8 @@ export default function ShiftChecklistScreen() {
 
   useEffect(() => { save(KEYS.shared, { darkMode, shiftType }); }, [darkMode, shiftType]);
   useEffect(() => { save(KEYS.notif_prefs, notifPrefs); }, [notifPrefs]);
-  useEffect(() => { save(KEYS.notif_times, notifTimes); if (isInitialized.current && Platform.OS !== 'web') debouncedSchedule(); }, [notifTimes]);
+  useEffect(() => { save(KEYS.notif_times, notifTimes); if (isInitialized.current && Platform.OS !== 'web') debouncedSchedule(); }, [notifTimes]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { save(KEYS.shift_hours, shiftHours); }, [shiftHours]);
   useEffect(() => {
     if (!isInitialized.current) return;
     AsyncStorage.setItem(KEYS.morning_name,    morningName).catch(console.log);
@@ -370,6 +401,65 @@ export default function ShiftChecklistScreen() {
   useEffect(() => { save(KEYS.afternoon_after,  afternoonAfter);  }, [afternoonAfter]);
   useEffect(() => { save(KEYS.afternoon_table,  afternoonTable);  }, [afternoonTable]);
   useEffect(() => { save(KEYS.afternoon_walk,   afternoonWalk);   }, [afternoonWalk]);
+
+  // ── Sync table & walk when morning hours change ──────────────────────────────
+  useEffect(() => {
+    if (!isInitialized.current) return;
+    setMorningTable(prev =>
+      morningHoursList.map(h => prev.find(r => r.hour === h) || mkRows([h])[0])
+    );
+    setMorningWalk(prev => {
+      const oldMap = {};
+      morningHoursList.forEach((h, i) => { if (prev[i] !== undefined) oldMap[h] = prev[i]; });
+      return morningHoursList.map(h => oldMap[h] !== undefined ? oldMap[h] : `${h}:00`);
+    });
+  }, [JSON.stringify(morningHoursList)]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Sync table & walk when afternoon hours change ─────────────────────────
+  useEffect(() => {
+    if (!isInitialized.current) return;
+    setAfternoonTable(prev =>
+      afternoonHoursList.map(h => prev.find(r => r.hour === h) || mkRows([h])[0])
+    );
+    setAfternoonWalk(prev => {
+      const oldMap = {};
+      afternoonHoursList.forEach((h, i) => { if (prev[i] !== undefined) oldMap[h] = prev[i]; });
+      return afternoonHoursList.map(h => oldMap[h] !== undefined ? oldMap[h] : `${h}:00`);
+    });
+  }, [JSON.stringify(afternoonHoursList)]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Countdown timer effect ────────────────────────────────────────────────────
+  useEffect(() => {
+    const tick = () => {
+      const tbl = shiftType === 'morning' ? morningTable : afternoonTable;
+      if (!tbl || !tbl.length) { setTimeLeft(''); setShiftEnded(false); return; }
+      const lastHour = parseInt(tbl[tbl.length - 1].hour);
+      if (isNaN(lastHour)) { setTimeLeft(''); return; }
+      const endH = lastHour + 1;
+      const now = new Date();
+      const end = new Date();
+      end.setHours(endH, 0, 0, 0);
+      const diffMs = end - now;
+      if (diffMs <= 0) {
+        setShiftEnded(true);
+        setTimeLeft('00:00:00');
+      } else {
+        setShiftEnded(false);
+        const totalSecs = Math.floor(diffMs / 1000);
+        const h = Math.floor(totalSecs / 3600);
+        const m = Math.floor((totalSecs % 3600) / 60);
+        const s = totalSecs % 60;
+        setTimeLeft(
+          String(h).padStart(2,'0') + ':' +
+          String(m).padStart(2,'0') + ':' +
+          String(s).padStart(2,'0')
+        );
+      }
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [shiftType, morningTable, afternoonTable]);
 
   // ── Handover save ────────────────────────────────────────────────────────────
   const saveHandover = async () => {
@@ -827,6 +917,42 @@ export default function ShiftChecklistScreen() {
           ))}
         </View>
 
+        {/* ── COUNTDOWN TIMER ───────────────────────────────────────────────── */}
+        {timeLeft !== '' && (
+          <View style={[s.countdownBox, {
+            backgroundColor: shiftEnded
+              ? (darkMode ? '#052e16' : '#dcfce7')
+              : (darkMode ? '#0a1120' : '#f8fafc'),
+            borderColor: shiftEnded
+              ? (darkMode ? '#14532d' : '#86efac')
+              : (darkMode ? '#1e293b' : '#e2e8f0'),
+          }]}>
+            <View style={{flexDirection:'row', alignItems:'center', flex:1}}>
+              <View style={[s.countdownIconWrap, {
+                backgroundColor: shiftEnded
+                  ? (darkMode ? '#14532d' : '#bbf7d0')
+                  : (darkMode ? '#1e293b' : '#f1f5f9'),
+              }]}>
+                <Ionicons
+                  name={shiftEnded ? 'checkmark-circle' : 'timer-outline'}
+                  size={18}
+                  color={shiftEnded ? '#22c55e' : ACCENT}
+                />
+              </View>
+              <View style={{flex:1}}>
+                <Text style={[s.countdownLabel, {color: T.subText}]}>
+                  {shiftEnded ? 'Zmena skončila' : 'Do konca zmeny'}
+                </Text>
+                <Text style={[s.countdownTime, {
+                  color: shiftEnded ? '#22c55e' : ACCENT,
+                }]}>
+                  {shiftEnded ? 'Čas vypršal ✓' : timeLeft}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* ── BEFORE + DURING CHECKLISTS ─────────────────────────────────────── */}
         {[
           {label:'Pred zmenou', icon:'clipboard-outline', items:checklist,  toggle:toggleCheck,       stateObj:checks,      pfx:`${prefix}_before`, section:'before', done:beforeDone, total:checklist.length},
@@ -969,6 +1095,69 @@ export default function ShiftChecklistScreen() {
             <Text style={[s.prodValue, {color: T.text}]}>{calcProd('salesReality')} / {calcProd('tcReality')}</Text>
           </View>
         </View>
+
+        {/* ── HODNOTENIE ZMENY ───────────────────────────────────────────────── */}
+        {(() => {
+          const sp = calcSum('salesPlan');
+          const sr = calcSum('salesReality');
+          const tp = calcSum('tcPlan');
+          const tr = calcSum('tcReality');
+          if (!sp && !tp) return null;
+          const salesPct = sp > 0 ? Math.round((sr / sp) * 100) : null;
+          const tcPct    = tp > 0 ? Math.round((tr / tp) * 100) : null;
+          const minPct   = Math.min(salesPct ?? 999, tcPct ?? 999);
+          const grade = minPct >= 100 ? 'green' : minPct >= 90 ? 'yellow' : 'red';
+          const gradeColor = grade === 'green' ? '#22c55e' : grade === 'yellow' ? '#f59e0b' : '#ef4444';
+          const gradeBg    = grade === 'green'
+            ? (darkMode ? '#052e16' : '#dcfce7')
+            : grade === 'yellow'
+              ? (darkMode ? '#2d1800' : '#fef3c7')
+              : (darkMode ? '#2d0a0a' : '#fee2e2');
+          const gradeBorder = grade === 'green'
+            ? (darkMode ? '#14532d' : '#86efac')
+            : grade === 'yellow'
+              ? (darkMode ? '#78350f' : '#fcd34d')
+              : (darkMode ? '#7f1d1d' : '#fca5a5');
+          const gradeLabel = grade === 'green' ? 'Výborná zmena! 🟢' : grade === 'yellow' ? 'Dobrá zmena 🟡' : 'Pod plán 🔴';
+          const gradeIcon  = grade === 'green' ? 'trophy' : grade === 'yellow' ? 'trending-up' : 'trending-down';
+          return (
+            <View>
+              <SectionHeader label="Hodnotenie zmeny" icon="stats-chart-outline" T={T} />
+              <View style={[s.evalBox, {backgroundColor: gradeBg, borderColor: gradeBorder}]}>
+                <View style={[s.evalGradeRow, {borderBottomColor: gradeBorder}]}>
+                  <View style={[s.evalGradeIcon, {backgroundColor: darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}]}>
+                    <Ionicons name={gradeIcon} size={22} color={gradeColor} />
+                  </View>
+                  <Text style={[s.evalGradeText, {color: gradeColor}]}>{gradeLabel}</Text>
+                </View>
+                <View style={s.evalRows}>
+                  {salesPct !== null && (
+                    <View style={s.evalRow}>
+                      <Text style={[s.evalRowLabel, {color: T.subText}]}>Sales Real / Plan</Text>
+                      <View style={{flexDirection:'row', alignItems:'center', gap:6}}>
+                        <Text style={[s.evalRowVal, {color: T.text}]}>{sr} / {sp}</Text>
+                        <View style={[s.evalPctBadge, {backgroundColor: salesPct>=100 ? (darkMode?'#052e16':'#dcfce7') : salesPct>=90 ? (darkMode?'#2d1800':'#fef3c7') : (darkMode?'#2d0a0a':'#fee2e2')}]}>
+                          <Text style={[s.evalPctText, {color: salesPct>=100?'#22c55e':salesPct>=90?'#f59e0b':'#ef4444'}]}>{salesPct}%</Text>
+                        </View>
+                      </View>
+                    </View>
+                  )}
+                  {tcPct !== null && (
+                    <View style={[s.evalRow, {borderTopWidth:1, borderTopColor: gradeBorder}]}>
+                      <Text style={[s.evalRowLabel, {color: T.subText}]}>TC Real / Plan</Text>
+                      <View style={{flexDirection:'row', alignItems:'center', gap:6}}>
+                        <Text style={[s.evalRowVal, {color: T.text}]}>{tr} / {tp}</Text>
+                        <View style={[s.evalPctBadge, {backgroundColor: tcPct>=100 ? (darkMode?'#052e16':'#dcfce7') : tcPct>=90 ? (darkMode?'#2d1800':'#fef3c7') : (darkMode?'#2d0a0a':'#fee2e2')}]}>
+                          <Text style={[s.evalPctText, {color: tcPct>=100?'#22c55e':tcPct>=90?'#f59e0b':'#ef4444'}]}>{tcPct}%</Text>
+                        </View>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              </View>
+            </View>
+          );
+        })()}
 
         {/* ── NOTES ──────────────────────────────────────────────────────────── */}
         <SectionHeader label="Poznámky" icon="create-outline" T={T} />
@@ -1336,6 +1525,77 @@ export default function ShiftChecklistScreen() {
                   ))}
                 </View>
 
+                {/* ─── ČASY ZMIEN ─── */}
+                <View style={sm.sectionLabelRow}>
+                  <Ionicons name="calendar-outline" size={12} color={T.subText} style={{marginRight: 5}} />
+                  <Text style={[sm.sectionLabel, {color: T.subText}]}>ČASY ZMIEN</Text>
+                </View>
+                <View style={[sm.card, {backgroundColor: T.card, borderColor: T.border}]}>
+
+                  {/* Morning shift hours */}
+                  <View style={{paddingHorizontal:16, paddingTop:14, paddingBottom:10}}>
+                    <View style={{flexDirection:'row', alignItems:'center', marginBottom:12}}>
+                      <View style={[sm.iconBox, {backgroundColor: darkMode ? '#2d1800' : '#fffbeb', marginRight:12}]}>
+                        <Ionicons name="sunny" size={17} color="#f59e0b" />
+                      </View>
+                      <View style={{flex:1}}>
+                        <Text style={[sm.rowLabel, {color: T.text, fontSize:14}]}>Ranná zmena</Text>
+                        <Text style={[sm.rowSub, {color: T.subText}]}>
+                          {String(shiftHours.morningStart).padStart(2,'0') + ':00 — ' + String(shiftHours.morningEnd).padStart(2,'0') + ':59  (' + (shiftHours.morningEnd - shiftHours.morningStart + 1) + ' hodín)'}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={{flexDirection:'row', alignItems:'center', gap:10, flexWrap:'wrap'}}>
+                      <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:28}}>OD</Text>
+                      <View style={{flexDirection:'row', alignItems:'center', gap:5}}>
+                        <TouchableOpacity style={sm_hBtn} onPress={() => setShiftHours(p=>({...p, morningStart: Math.max(0, p.morningStart-1)}))} activeOpacity={0.7}><Ionicons name="remove" size={16} color={T.text} /></TouchableOpacity>
+                        <TextInput style={[sm_hInput, {color: '#f59e0b', borderColor: '#f59e0b'}]} value={String(shiftHours.morningStart)} keyboardType="numeric" maxLength={2} onChangeText={(v)=>{const n=parseInt(v);if(!isNaN(n)&&n>=0&&n<=23)setShiftHours(p=>({...p,morningStart:n}));else if(v==='')setShiftHours(p=>({...p,morningStart:0}));}} />
+                        <TouchableOpacity style={sm_hBtn} onPress={() => setShiftHours(p=>({...p, morningStart: Math.min(p.morningEnd, p.morningStart+1)}))} activeOpacity={0.7}><Ionicons name="add" size={16} color={T.text} /></TouchableOpacity>
+                      </View>
+                      <Text style={{color: T.subText, fontSize:16, fontWeight:'900', marginHorizontal:4}}>—</Text>
+                      <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:28}}>DO</Text>
+                      <View style={{flexDirection:'row', alignItems:'center', gap:5}}>
+                        <TouchableOpacity style={sm_hBtn} onPress={() => setShiftHours(p=>({...p, morningEnd: Math.max(p.morningStart, p.morningEnd-1)}))} activeOpacity={0.7}><Ionicons name="remove" size={16} color={T.text} /></TouchableOpacity>
+                        <TextInput style={[sm_hInput, {color: '#f59e0b', borderColor: '#f59e0b'}]} value={String(shiftHours.morningEnd)} keyboardType="numeric" maxLength={2} onChangeText={(v)=>{const n=parseInt(v);if(!isNaN(n)&&n>=0&&n<=23)setShiftHours(p=>({...p,morningEnd:n}));else if(v==='')setShiftHours(p=>({...p,morningEnd:0}));}} />
+                        <TouchableOpacity style={sm_hBtn} onPress={() => setShiftHours(p=>({...p, morningEnd: Math.min(23, p.morningEnd+1)}))} activeOpacity={0.7}><Ionicons name="add" size={16} color={T.text} /></TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={[sm.divider, {backgroundColor: T.border, marginHorizontal:16}]} />
+
+                  {/* Afternoon shift hours */}
+                  <View style={{paddingHorizontal:16, paddingTop:10, paddingBottom:14}}>
+                    <View style={{flexDirection:'row', alignItems:'center', marginBottom:12}}>
+                      <View style={[sm.iconBox, {backgroundColor: darkMode ? '#0c1a2e' : '#eff6ff', marginRight:12}]}>
+                        <Ionicons name="partly-sunny" size={17} color="#3b82f6" />
+                      </View>
+                      <View style={{flex:1}}>
+                        <Text style={[sm.rowLabel, {color: T.text, fontSize:14}]}>Obedná zmena</Text>
+                        <Text style={[sm.rowSub, {color: T.subText}]}>
+                          {String(shiftHours.afternoonStart).padStart(2,'0') + ':00 — ' + String(shiftHours.afternoonEnd).padStart(2,'0') + ':59  (' + (shiftHours.afternoonEnd - shiftHours.afternoonStart + 1) + ' hodín)'}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={{flexDirection:'row', alignItems:'center', gap:10, flexWrap:'wrap'}}>
+                      <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:28}}>OD</Text>
+                      <View style={{flexDirection:'row', alignItems:'center', gap:5}}>
+                        <TouchableOpacity style={sm_hBtn} onPress={() => setShiftHours(p=>({...p, afternoonStart: Math.max(0, p.afternoonStart-1)}))} activeOpacity={0.7}><Ionicons name="remove" size={16} color={T.text} /></TouchableOpacity>
+                        <TextInput style={[sm_hInput, {color: '#3b82f6', borderColor: '#3b82f6'}]} value={String(shiftHours.afternoonStart)} keyboardType="numeric" maxLength={2} onChangeText={(v)=>{const n=parseInt(v);if(!isNaN(n)&&n>=0&&n<=23)setShiftHours(p=>({...p,afternoonStart:n}));else if(v==='')setShiftHours(p=>({...p,afternoonStart:0}));}} />
+                        <TouchableOpacity style={sm_hBtn} onPress={() => setShiftHours(p=>({...p, afternoonStart: Math.min(p.afternoonEnd, p.afternoonStart+1)}))} activeOpacity={0.7}><Ionicons name="add" size={16} color={T.text} /></TouchableOpacity>
+                      </View>
+                      <Text style={{color: T.subText, fontSize:16, fontWeight:'900', marginHorizontal:4}}>—</Text>
+                      <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:28}}>DO</Text>
+                      <View style={{flexDirection:'row', alignItems:'center', gap:5}}>
+                        <TouchableOpacity style={sm_hBtn} onPress={() => setShiftHours(p=>({...p, afternoonEnd: Math.max(p.afternoonStart, p.afternoonEnd-1)}))} activeOpacity={0.7}><Ionicons name="remove" size={16} color={T.text} /></TouchableOpacity>
+                        <TextInput style={[sm_hInput, {color: '#3b82f6', borderColor: '#3b82f6'}]} value={String(shiftHours.afternoonEnd)} keyboardType="numeric" maxLength={2} onChangeText={(v)=>{const n=parseInt(v);if(!isNaN(n)&&n>=0&&n<=23)setShiftHours(p=>({...p,afternoonEnd:n}));else if(v==='')setShiftHours(p=>({...p,afternoonEnd:0}));}} />
+                        <TouchableOpacity style={sm_hBtn} onPress={() => setShiftHours(p=>({...p, afternoonEnd: Math.min(23, p.afternoonEnd+1)}))} activeOpacity={0.7}><Ionicons name="add" size={16} color={T.text} /></TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+
+                </View>
+
                 {/* ─── ČASY NOTIFIKÁCIÍ ─── */}
                 <View style={sm.sectionLabelRow}>
                   <Ionicons name="alarm-outline" size={12} color={T.subText} style={{marginRight: 5}} />
@@ -1420,7 +1680,7 @@ export default function ShiftChecklistScreen() {
                       </View>
                     </View>
                     <View style={{flexDirection:'row', alignItems:'center', gap:10}}>
-                      <Text style={[{color: T.subText, fontSize:13, fontWeight:'600', width:130}]}>Minúty po hodine:</Text>
+                      <Text style={{color: T.subText, fontSize:13, fontWeight:'600', width:130}}>Minúty po hodine:</Text>
                       <View style={{flexDirection:'row', alignItems:'center', gap:6}}>
                         <TouchableOpacity
                           style={{width:34, height:34, borderRadius:10, backgroundColor: T.card, borderWidth:1.5, borderColor: T.border, alignItems:'center', justifyContent:'center'}}
@@ -1710,6 +1970,20 @@ const s = StyleSheet.create({
                     paddingVertical:13, marginHorizontal:-14, borderBottomLeftRadius:14, borderBottomRightRadius:14, marginTop:0},
   handoverBtnTxt:  {fontSize:14, fontWeight:'700'},
   notesInput:      {minHeight:130, textAlignVertical:'top', fontSize:15, fontWeight:'500', lineHeight:22},
+  countdownBox:    {flexDirection:'row', alignItems:'center', borderRadius:14, borderWidth:1.5, paddingHorizontal:14, paddingVertical:12, marginBottom:18, ...SHADOW},
+  countdownIconWrap:{width:36, height:36, borderRadius:10, alignItems:'center', justifyContent:'center', marginRight:12},
+  countdownLabel:  {fontSize:11, fontWeight:'700', letterSpacing:0.5, marginBottom:2},
+  countdownTime:   {fontSize:22, fontWeight:'900', letterSpacing:1},
+  evalBox:         {borderRadius:16, borderWidth:1.5, marginBottom:22, overflow:'hidden', ...SHADOW},
+  evalGradeRow:    {flexDirection:'row', alignItems:'center', paddingHorizontal:16, paddingVertical:14, borderBottomWidth:1, gap:12},
+  evalGradeIcon:   {width:40, height:40, borderRadius:12, alignItems:'center', justifyContent:'center'},
+  evalGradeText:   {fontSize:18, fontWeight:'900', letterSpacing:-0.3},
+  evalRows:        {paddingHorizontal:16, paddingVertical:4},
+  evalRow:         {flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingVertical:12},
+  evalRowLabel:    {fontSize:13, fontWeight:'600'},
+  evalRowVal:      {fontSize:14, fontWeight:'700'},
+  evalPctBadge:    {paddingHorizontal:10, paddingVertical:4, borderRadius:20},
+  evalPctText:     {fontSize:13, fontWeight:'800'},
   resetBtn:        {flexDirection:'row', alignItems:'center', justifyContent:'center', backgroundColor:DANGER, paddingVertical:15, borderRadius:14, marginTop:8, marginBottom:32,
     ...Platform.select({ios:{shadowColor:DANGER,shadowOffset:{width:0,height:4},shadowOpacity:0.35,shadowRadius:10},android:{elevation:5}})},
   resetTxt:        {color:'#fff', fontWeight:'800', fontSize:16},
@@ -1734,6 +2008,9 @@ const cr = StyleSheet.create({
   label:     {flex:1, fontSize:14, fontWeight:'500', lineHeight:20},
   deleteBtn: {padding:4, marginLeft:6, marginTop:1},
 });
+
+const sm_hBtn = {width:32, height:32, borderRadius:9, alignItems:'center', justifyContent:'center'};
+const sm_hInput = {width:44, textAlign:'center', fontSize:16, fontWeight:'800', borderRadius:9, borderWidth:1.5, paddingVertical:5};
 
 const sm = StyleSheet.create({
   container:    {flex:1},
