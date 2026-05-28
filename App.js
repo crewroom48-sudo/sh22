@@ -1545,19 +1545,20 @@ export default function ShiftChecklistScreen() {
                         </Text>
                       </View>
                     </View>
-                    <View style={{flexDirection:'row', alignItems:'center', gap:10, flexWrap:'wrap'}}>
-                      <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:28}}>OD</Text>
-                      <View style={{flexDirection:'row', alignItems:'center', gap:5}}>
+                    <View style={{gap:10}}>
+                      <View style={{flexDirection:'row', alignItems:'center', gap:10}}>
+                        <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:36}}>OD</Text>
                         <TouchableOpacity style={sm_hBtn} onPress={() => setShiftHours(p=>({...p, morningStart: Math.max(0, p.morningStart-1)}))} activeOpacity={0.7}><Ionicons name="remove" size={16} color={T.text} /></TouchableOpacity>
                         <TextInput style={[sm_hInput, {color: '#f59e0b', borderColor: '#f59e0b'}]} value={String(shiftHours.morningStart)} keyboardType="numeric" maxLength={2} onChangeText={(v)=>{const n=parseInt(v);if(!isNaN(n)&&n>=0&&n<=23)setShiftHours(p=>({...p,morningStart:n}));else if(v==='')setShiftHours(p=>({...p,morningStart:0}));}} />
                         <TouchableOpacity style={sm_hBtn} onPress={() => setShiftHours(p=>({...p, morningStart: Math.min(p.morningEnd, p.morningStart+1)}))} activeOpacity={0.7}><Ionicons name="add" size={16} color={T.text} /></TouchableOpacity>
+                        <Text style={{color: T.subText, fontSize:12, color: T.subText}}>hodín</Text>
                       </View>
-                      <Text style={{color: T.subText, fontSize:16, fontWeight:'900', marginHorizontal:4}}>—</Text>
-                      <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:28}}>DO</Text>
-                      <View style={{flexDirection:'row', alignItems:'center', gap:5}}>
+                      <View style={{flexDirection:'row', alignItems:'center', gap:10}}>
+                        <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:36}}>DO</Text>
                         <TouchableOpacity style={sm_hBtn} onPress={() => setShiftHours(p=>({...p, morningEnd: Math.max(p.morningStart, p.morningEnd-1)}))} activeOpacity={0.7}><Ionicons name="remove" size={16} color={T.text} /></TouchableOpacity>
                         <TextInput style={[sm_hInput, {color: '#f59e0b', borderColor: '#f59e0b'}]} value={String(shiftHours.morningEnd)} keyboardType="numeric" maxLength={2} onChangeText={(v)=>{const n=parseInt(v);if(!isNaN(n)&&n>=0&&n<=23)setShiftHours(p=>({...p,morningEnd:n}));else if(v==='')setShiftHours(p=>({...p,morningEnd:0}));}} />
                         <TouchableOpacity style={sm_hBtn} onPress={() => setShiftHours(p=>({...p, morningEnd: Math.min(23, p.morningEnd+1)}))} activeOpacity={0.7}><Ionicons name="add" size={16} color={T.text} /></TouchableOpacity>
+                        <Text style={{color: T.subText, fontSize:12}}>hodín</Text>
                       </View>
                     </View>
                   </View>
@@ -1577,19 +1578,20 @@ export default function ShiftChecklistScreen() {
                         </Text>
                       </View>
                     </View>
-                    <View style={{flexDirection:'row', alignItems:'center', gap:10, flexWrap:'wrap'}}>
-                      <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:28}}>OD</Text>
-                      <View style={{flexDirection:'row', alignItems:'center', gap:5}}>
+                    <View style={{gap:10}}>
+                      <View style={{flexDirection:'row', alignItems:'center', gap:10}}>
+                        <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:36}}>OD</Text>
                         <TouchableOpacity style={sm_hBtn} onPress={() => setShiftHours(p=>({...p, afternoonStart: Math.max(0, p.afternoonStart-1)}))} activeOpacity={0.7}><Ionicons name="remove" size={16} color={T.text} /></TouchableOpacity>
                         <TextInput style={[sm_hInput, {color: '#3b82f6', borderColor: '#3b82f6'}]} value={String(shiftHours.afternoonStart)} keyboardType="numeric" maxLength={2} onChangeText={(v)=>{const n=parseInt(v);if(!isNaN(n)&&n>=0&&n<=23)setShiftHours(p=>({...p,afternoonStart:n}));else if(v==='')setShiftHours(p=>({...p,afternoonStart:0}));}} />
                         <TouchableOpacity style={sm_hBtn} onPress={() => setShiftHours(p=>({...p, afternoonStart: Math.min(p.afternoonEnd, p.afternoonStart+1)}))} activeOpacity={0.7}><Ionicons name="add" size={16} color={T.text} /></TouchableOpacity>
+                        <Text style={{color: T.subText, fontSize:12}}>hodín</Text>
                       </View>
-                      <Text style={{color: T.subText, fontSize:16, fontWeight:'900', marginHorizontal:4}}>—</Text>
-                      <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:28}}>DO</Text>
-                      <View style={{flexDirection:'row', alignItems:'center', gap:5}}>
+                      <View style={{flexDirection:'row', alignItems:'center', gap:10}}>
+                        <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:36}}>DO</Text>
                         <TouchableOpacity style={sm_hBtn} onPress={() => setShiftHours(p=>({...p, afternoonEnd: Math.max(p.afternoonStart, p.afternoonEnd-1)}))} activeOpacity={0.7}><Ionicons name="remove" size={16} color={T.text} /></TouchableOpacity>
                         <TextInput style={[sm_hInput, {color: '#3b82f6', borderColor: '#3b82f6'}]} value={String(shiftHours.afternoonEnd)} keyboardType="numeric" maxLength={2} onChangeText={(v)=>{const n=parseInt(v);if(!isNaN(n)&&n>=0&&n<=23)setShiftHours(p=>({...p,afternoonEnd:n}));else if(v==='')setShiftHours(p=>({...p,afternoonEnd:0}));}} />
                         <TouchableOpacity style={sm_hBtn} onPress={() => setShiftHours(p=>({...p, afternoonEnd: Math.min(23, p.afternoonEnd+1)}))} activeOpacity={0.7}><Ionicons name="add" size={16} color={T.text} /></TouchableOpacity>
+                        <Text style={{color: T.subText, fontSize:12}}>hodín</Text>
                       </View>
                     </View>
                   </View>
@@ -1615,19 +1617,18 @@ export default function ShiftChecklistScreen() {
                         </Text>
                       </View>
                     </View>
-                    <View style={{flexDirection:'row', alignItems:'center', gap:8}}>
-                      <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:52}}>HODINA</Text>
-                      <View style={{flexDirection:'row', alignItems:'center', gap:5}}>
-                        <TouchableOpacity style={{width:32,height:32,borderRadius:9,backgroundColor:T.card,borderWidth:1.5,borderColor:T.border,alignItems:'center',justifyContent:'center'}} onPress={() => setNotifTimes(p=>({...p,morningPrepHour:Math.max(0,(p.morningPrepHour??8)-1)}))} activeOpacity={0.7}><Ionicons name="remove" size={16} color={T.text} /></TouchableOpacity>
-                        <TextInput style={{width:46,textAlign:'center',fontSize:16,fontWeight:'800',color:ACCENT,backgroundColor:T.inputBg,borderRadius:9,borderWidth:1.5,borderColor:ACCENT,paddingVertical:5}} value={String(notifTimes.morningPrepHour??8)} keyboardType="numeric" maxLength={2} onChangeText={(v)=>{const n=parseInt(v);if(!isNaN(n)&&n>=0&&n<=23)setNotifTimes(p=>({...p,morningPrepHour:n}));else if(v==='')setNotifTimes(p=>({...p,morningPrepHour:0}));}} />
-                        <TouchableOpacity style={{width:32,height:32,borderRadius:9,backgroundColor:T.card,borderWidth:1.5,borderColor:T.border,alignItems:'center',justifyContent:'center'}} onPress={() => setNotifTimes(p=>({...p,morningPrepHour:Math.min(23,(p.morningPrepHour??8)+1)}))} activeOpacity={0.7}><Ionicons name="add" size={16} color={T.text} /></TouchableOpacity>
+                    <View style={{gap:10}}>
+                      <View style={{flexDirection:'row', alignItems:'center', gap:10}}>
+                        <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:60}}>HODINA</Text>
+                        <TouchableOpacity style={sm_hBtn} onPress={() => setNotifTimes(p=>({...p,morningPrepHour:Math.max(0,(p.morningPrepHour??8)-1)}))} activeOpacity={0.7}><Ionicons name="remove" size={16} color={T.text} /></TouchableOpacity>
+                        <TextInput style={[sm_hInput, {color:ACCENT, borderColor:ACCENT}]} value={String(notifTimes.morningPrepHour??8)} keyboardType="numeric" maxLength={2} onChangeText={(v)=>{const n=parseInt(v);if(!isNaN(n)&&n>=0&&n<=23)setNotifTimes(p=>({...p,morningPrepHour:n}));else if(v==='')setNotifTimes(p=>({...p,morningPrepHour:0}));}} />
+                        <TouchableOpacity style={sm_hBtn} onPress={() => setNotifTimes(p=>({...p,morningPrepHour:Math.min(23,(p.morningPrepHour??8)+1)}))} activeOpacity={0.7}><Ionicons name="add" size={16} color={T.text} /></TouchableOpacity>
                       </View>
-                      <Text style={{color:ACCENT,fontSize:20,fontWeight:'900',marginHorizontal:2}}>:</Text>
-                      <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:52}}>MINÚTA</Text>
-                      <View style={{flexDirection:'row', alignItems:'center', gap:5}}>
-                        <TouchableOpacity style={{width:32,height:32,borderRadius:9,backgroundColor:T.card,borderWidth:1.5,borderColor:T.border,alignItems:'center',justifyContent:'center'}} onPress={() => setNotifTimes(p=>({...p,morningPrepMinute:Math.max(0,(p.morningPrepMinute??1)-1)}))} activeOpacity={0.7}><Ionicons name="remove" size={16} color={T.text} /></TouchableOpacity>
-                        <TextInput style={{width:46,textAlign:'center',fontSize:16,fontWeight:'800',color:ACCENT,backgroundColor:T.inputBg,borderRadius:9,borderWidth:1.5,borderColor:ACCENT,paddingVertical:5}} value={String(notifTimes.morningPrepMinute??1)} keyboardType="numeric" maxLength={2} onChangeText={(v)=>{const n=parseInt(v);if(!isNaN(n)&&n>=0&&n<=59)setNotifTimes(p=>({...p,morningPrepMinute:n}));else if(v==='')setNotifTimes(p=>({...p,morningPrepMinute:0}));}} />
-                        <TouchableOpacity style={{width:32,height:32,borderRadius:9,backgroundColor:T.card,borderWidth:1.5,borderColor:T.border,alignItems:'center',justifyContent:'center'}} onPress={() => setNotifTimes(p=>({...p,morningPrepMinute:Math.min(59,(p.morningPrepMinute??1)+1)}))} activeOpacity={0.7}><Ionicons name="add" size={16} color={T.text} /></TouchableOpacity>
+                      <View style={{flexDirection:'row', alignItems:'center', gap:10}}>
+                        <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:60}}>MINÚTA</Text>
+                        <TouchableOpacity style={sm_hBtn} onPress={() => setNotifTimes(p=>({...p,morningPrepMinute:Math.max(0,(p.morningPrepMinute??1)-1)}))} activeOpacity={0.7}><Ionicons name="remove" size={16} color={T.text} /></TouchableOpacity>
+                        <TextInput style={[sm_hInput, {color:ACCENT, borderColor:ACCENT}]} value={String(notifTimes.morningPrepMinute??1)} keyboardType="numeric" maxLength={2} onChangeText={(v)=>{const n=parseInt(v);if(!isNaN(n)&&n>=0&&n<=59)setNotifTimes(p=>({...p,morningPrepMinute:n}));else if(v==='')setNotifTimes(p=>({...p,morningPrepMinute:0}));}} />
+                        <TouchableOpacity style={sm_hBtn} onPress={() => setNotifTimes(p=>({...p,morningPrepMinute:Math.min(59,(p.morningPrepMinute??1)+1)}))} activeOpacity={0.7}><Ionicons name="add" size={16} color={T.text} /></TouchableOpacity>
                       </View>
                     </View>
                   </View>
@@ -1647,19 +1648,18 @@ export default function ShiftChecklistScreen() {
                         </Text>
                       </View>
                     </View>
-                    <View style={{flexDirection:'row', alignItems:'center', gap:8}}>
-                      <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:52}}>HODINA</Text>
-                      <View style={{flexDirection:'row', alignItems:'center', gap:5}}>
-                        <TouchableOpacity style={{width:32,height:32,borderRadius:9,backgroundColor:T.card,borderWidth:1.5,borderColor:T.border,alignItems:'center',justifyContent:'center'}} onPress={() => setNotifTimes(p=>({...p,afternoonPrepHour:Math.max(0,(p.afternoonPrepHour??15)-1)}))} activeOpacity={0.7}><Ionicons name="remove" size={16} color={T.text} /></TouchableOpacity>
-                        <TextInput style={{width:46,textAlign:'center',fontSize:16,fontWeight:'800',color:'#f59e0b',backgroundColor:T.inputBg,borderRadius:9,borderWidth:1.5,borderColor:'#f59e0b',paddingVertical:5}} value={String(notifTimes.afternoonPrepHour??15)} keyboardType="numeric" maxLength={2} onChangeText={(v)=>{const n=parseInt(v);if(!isNaN(n)&&n>=0&&n<=23)setNotifTimes(p=>({...p,afternoonPrepHour:n}));else if(v==='')setNotifTimes(p=>({...p,afternoonPrepHour:0}));}} />
-                        <TouchableOpacity style={{width:32,height:32,borderRadius:9,backgroundColor:T.card,borderWidth:1.5,borderColor:T.border,alignItems:'center',justifyContent:'center'}} onPress={() => setNotifTimes(p=>({...p,afternoonPrepHour:Math.min(23,(p.afternoonPrepHour??15)+1)}))} activeOpacity={0.7}><Ionicons name="add" size={16} color={T.text} /></TouchableOpacity>
+                    <View style={{gap:10}}>
+                      <View style={{flexDirection:'row', alignItems:'center', gap:10}}>
+                        <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:60}}>HODINA</Text>
+                        <TouchableOpacity style={sm_hBtn} onPress={() => setNotifTimes(p=>({...p,afternoonPrepHour:Math.max(0,(p.afternoonPrepHour??15)-1)}))} activeOpacity={0.7}><Ionicons name="remove" size={16} color={T.text} /></TouchableOpacity>
+                        <TextInput style={[sm_hInput, {color:'#f59e0b', borderColor:'#f59e0b'}]} value={String(notifTimes.afternoonPrepHour??15)} keyboardType="numeric" maxLength={2} onChangeText={(v)=>{const n=parseInt(v);if(!isNaN(n)&&n>=0&&n<=23)setNotifTimes(p=>({...p,afternoonPrepHour:n}));else if(v==='')setNotifTimes(p=>({...p,afternoonPrepHour:0}));}} />
+                        <TouchableOpacity style={sm_hBtn} onPress={() => setNotifTimes(p=>({...p,afternoonPrepHour:Math.min(23,(p.afternoonPrepHour??15)+1)}))} activeOpacity={0.7}><Ionicons name="add" size={16} color={T.text} /></TouchableOpacity>
                       </View>
-                      <Text style={{color:'#f59e0b',fontSize:20,fontWeight:'900',marginHorizontal:2}}>:</Text>
-                      <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:52}}>MINÚTA</Text>
-                      <View style={{flexDirection:'row', alignItems:'center', gap:5}}>
-                        <TouchableOpacity style={{width:32,height:32,borderRadius:9,backgroundColor:T.card,borderWidth:1.5,borderColor:T.border,alignItems:'center',justifyContent:'center'}} onPress={() => setNotifTimes(p=>({...p,afternoonPrepMinute:Math.max(0,(p.afternoonPrepMinute??1)-1)}))} activeOpacity={0.7}><Ionicons name="remove" size={16} color={T.text} /></TouchableOpacity>
-                        <TextInput style={{width:46,textAlign:'center',fontSize:16,fontWeight:'800',color:'#f59e0b',backgroundColor:T.inputBg,borderRadius:9,borderWidth:1.5,borderColor:'#f59e0b',paddingVertical:5}} value={String(notifTimes.afternoonPrepMinute??1)} keyboardType="numeric" maxLength={2} onChangeText={(v)=>{const n=parseInt(v);if(!isNaN(n)&&n>=0&&n<=59)setNotifTimes(p=>({...p,afternoonPrepMinute:n}));else if(v==='')setNotifTimes(p=>({...p,afternoonPrepMinute:0}));}} />
-                        <TouchableOpacity style={{width:32,height:32,borderRadius:9,backgroundColor:T.card,borderWidth:1.5,borderColor:T.border,alignItems:'center',justifyContent:'center'}} onPress={() => setNotifTimes(p=>({...p,afternoonPrepMinute:Math.min(59,(p.afternoonPrepMinute??1)+1)}))} activeOpacity={0.7}><Ionicons name="add" size={16} color={T.text} /></TouchableOpacity>
+                      <View style={{flexDirection:'row', alignItems:'center', gap:10}}>
+                        <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:60}}>MINÚTA</Text>
+                        <TouchableOpacity style={sm_hBtn} onPress={() => setNotifTimes(p=>({...p,afternoonPrepMinute:Math.max(0,(p.afternoonPrepMinute??1)-1)}))} activeOpacity={0.7}><Ionicons name="remove" size={16} color={T.text} /></TouchableOpacity>
+                        <TextInput style={[sm_hInput, {color:'#f59e0b', borderColor:'#f59e0b'}]} value={String(notifTimes.afternoonPrepMinute??1)} keyboardType="numeric" maxLength={2} onChangeText={(v)=>{const n=parseInt(v);if(!isNaN(n)&&n>=0&&n<=59)setNotifTimes(p=>({...p,afternoonPrepMinute:n}));else if(v==='')setNotifTimes(p=>({...p,afternoonPrepMinute:0}));}} />
+                        <TouchableOpacity style={sm_hBtn} onPress={() => setNotifTimes(p=>({...p,afternoonPrepMinute:Math.min(59,(p.afternoonPrepMinute??1)+1)}))} activeOpacity={0.7}><Ionicons name="add" size={16} color={T.text} /></TouchableOpacity>
                       </View>
                     </View>
                   </View>
@@ -1680,34 +1680,10 @@ export default function ShiftChecklistScreen() {
                       </View>
                     </View>
                     <View style={{flexDirection:'row', alignItems:'center', gap:10}}>
-                      <Text style={{color: T.subText, fontSize:13, fontWeight:'600', width:130}}>Minúty po hodine:</Text>
-                      <View style={{flexDirection:'row', alignItems:'center', gap:6}}>
-                        <TouchableOpacity
-                          style={{width:34, height:34, borderRadius:10, backgroundColor: T.card, borderWidth:1.5, borderColor: T.border, alignItems:'center', justifyContent:'center'}}
-                          onPress={() => setNotifTimes(p => ({...p, tableMinute: Math.max(0, (p.tableMinute||16) - 1)}))}
-                          activeOpacity={0.7}
-                        >
-                          <Ionicons name="remove" size={18} color={T.text} />
-                        </TouchableOpacity>
-                        <TextInput
-                          style={{width:50, textAlign:'center', fontSize:17, fontWeight:'800', color:'#3b82f6', backgroundColor: T.inputBg, borderRadius:10, borderWidth:1.5, borderColor:'#3b82f6', paddingVertical:6}}
-                          value={String(notifTimes.tableMinute ?? 16)}
-                          keyboardType="numeric"
-                          maxLength={2}
-                          onChangeText={(v) => {
-                            const n = parseInt(v);
-                            if (!isNaN(n) && n >= 0 && n <= 59) setNotifTimes(p => ({...p, tableMinute: n}));
-                            else if (v === '') setNotifTimes(p => ({...p, tableMinute: 0}));
-                          }}
-                        />
-                        <TouchableOpacity
-                          style={{width:34, height:34, borderRadius:10, backgroundColor: T.card, borderWidth:1.5, borderColor: T.border, alignItems:'center', justifyContent:'center'}}
-                          onPress={() => setNotifTimes(p => ({...p, tableMinute: Math.min(59, (p.tableMinute||16) + 1)}))}
-                          activeOpacity={0.7}
-                        >
-                          <Ionicons name="add" size={18} color={T.text} />
-                        </TouchableOpacity>
-                      </View>
+                      <Text style={{color: T.subText, fontSize:12, fontWeight:'700', width:60}}>MINÚTA</Text>
+                      <TouchableOpacity style={sm_hBtn} onPress={() => setNotifTimes(p=>({...p, tableMinute: Math.max(0,(p.tableMinute||16)-1)}))} activeOpacity={0.7}><Ionicons name="remove" size={16} color={T.text} /></TouchableOpacity>
+                      <TextInput style={[sm_hInput, {color:'#3b82f6', borderColor:'#3b82f6'}]} value={String(notifTimes.tableMinute??16)} keyboardType="numeric" maxLength={2} onChangeText={(v)=>{const n=parseInt(v);if(!isNaN(n)&&n>=0&&n<=59)setNotifTimes(p=>({...p,tableMinute:n}));else if(v==='')setNotifTimes(p=>({...p,tableMinute:0}));}} />
+                      <TouchableOpacity style={sm_hBtn} onPress={() => setNotifTimes(p=>({...p, tableMinute: Math.min(59,(p.tableMinute||16)+1)}))} activeOpacity={0.7}><Ionicons name="add" size={16} color={T.text} /></TouchableOpacity>
                     </View>
                   </View>
                 </View>
